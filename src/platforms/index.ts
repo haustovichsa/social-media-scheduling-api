@@ -7,6 +7,9 @@
  */
 export { AdapterRegistry } from './adapter-registry';
 export { PlatformsModule } from './platforms.module';
+export { MockAdapter } from './adapters/mock/mock.adapter';
+export { decodeCursor, encodeCursor } from './cursor';
+export { enforceThreadDepth } from './thread-depth';
 export {
   PLATFORM_ADAPTERS,
   PlatformAdapter,

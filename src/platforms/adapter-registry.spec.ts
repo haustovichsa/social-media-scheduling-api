@@ -94,13 +94,16 @@ describe('PlatformsModule (DI wiring)', () => {
     await moduleRef.close();
   });
 
-  it('exposes a working (empty) registry as shipped, before any adapter is added', async () => {
+  it('resolves the adapters registered by the shipped module', async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [PlatformsModule],
     }).compile();
 
     const registry = moduleRef.get(AdapterRegistry);
-    expect(registry.supportedPlatforms()).toEqual([]);
+    expect(registry.supportedPlatforms()).toEqual(
+      expect.arrayContaining([Platform.Mock, Platform.Facebook]),
+    );
+    expect(registry.get(Platform.Mock).platform).toBe(Platform.Mock);
 
     await moduleRef.close();
   });
