@@ -2,8 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
-import { validateEnv } from './config/env.validation';
+import { NodeEnv, validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
+import { PersistenceModule } from './persistence/persistence.module';
 
 /**
  * Root module and DI composition root. Feature modules are registered here;
@@ -19,9 +20,15 @@ import { HealthModule } from './health/health.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         uri: config.getOrThrow<string>('MONGODB_URI'),
+        // Let Mongoose build the declared indexes on connect outside of
+        // production; in production indexes should be applied deliberately
+        // (migration/ops) rather than on every boot against a live dataset.
+        autoIndex:
+          config.getOrThrow<NodeEnv>('NODE_ENV') !== NodeEnv.Production,
       }),
     }),
     HealthModule,
+    PersistenceModule,
   ],
 })
 export class AppModule {}

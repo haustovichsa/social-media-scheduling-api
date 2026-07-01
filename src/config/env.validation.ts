@@ -1,5 +1,18 @@
 import { plainToInstance, Type } from 'class-transformer';
-import { IsInt, IsString, Max, Min, validateSync } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsString,
+  Max,
+  Min,
+  validateSync,
+} from 'class-validator';
+
+export enum NodeEnv {
+  Development = 'development',
+  Test = 'test',
+  Production = 'production',
+}
 
 /**
  * Typed, validated view of the process environment. `ConfigModule` runs
@@ -7,6 +20,9 @@ import { IsInt, IsString, Max, Min, validateSync } from 'class-validator';
  * with a clear message instead of surfacing later as a runtime error.
  */
 export class EnvironmentVariables {
+  @IsEnum(NodeEnv)
+  NODE_ENV = NodeEnv.Development;
+
   // Env values arrive as strings; @Type coerces PORT to a number before validation.
   @Type(() => Number)
   @IsInt()
