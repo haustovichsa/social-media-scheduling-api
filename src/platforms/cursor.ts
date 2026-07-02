@@ -1,27 +1,14 @@
-import { PageCursor } from '../domain';
-
 /**
- * Opaque cursor codec shared by adapters. A {@link PageCursor} is a black box to
- * callers (NFR-1): each adapter stuffs whatever *it* pages by — an offset, a
- * Graph API `after` token, a `created_before` timestamp — into a small payload
- * and encodes it here. base64url keeps the result URL-safe so it drops straight
- * into a query string. Nothing outside the adapter ever parses it; callers only
- * round-trip the `nextCursor` verbatim.
+ * Adapter-facing view of the opaque cursor codec. The primitive itself lives in
+ * the domain layer ({@link encodeCursor}/{@link decodeCursor}) so adapters and
+ * the comment read path share one implementation; this module just re-exports it
+ * under the platforms barrel adapters already import from.
+ *
+ * The contract for adapters: a {@link PageCursor} is a black box to callers.
+ * Each adapter stuffs whatever *it* pages by — an offset, a Graph API `after`
+ * token, a `created_before` timestamp — into a small payload and encodes it here.
+ * Nothing outside the adapter ever parses it; callers only round-trip the
+ * `nextCursor` verbatim, which is what keeps that choice from leaking into the
+ * shared model (NFR-1).
  */
-export function encodeCursor(payload: object): PageCursor {
-  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-}
-
-/**
- * Decode a cursor previously produced by {@link encodeCursor}. A malformed
- * cursor is a bad request (the caller tampered with an opaque token), not a
- * platform failure — hence a plain error the API layer maps to 400, never a
- * {@link PlatformError}.
- */
-export function decodeCursor<T>(cursor: PageCursor): T {
-  try {
-    return JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as T;
-  } catch {
-    throw new Error('Invalid pagination cursor');
-  }
-}
+export { decodeCursor, encodeCursor } from '../domain/cursor';

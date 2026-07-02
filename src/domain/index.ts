@@ -8,3 +8,4 @@ export { Author } from './author';
 export { Comment } from './comment';
 export { Reply } from './reply';
 export { Page, PageCursor } from './page';
+export { decodeCursor, encodeCursor } from './cursor';

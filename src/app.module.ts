@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
+import { CommentsModule } from './comments/comments.module';
 import { NodeEnv, validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { PersistenceModule } from './persistence/persistence.module';
@@ -29,6 +30,7 @@ import { PersistenceModule } from './persistence/persistence.module';
     }),
     HealthModule,
     PersistenceModule,
+    CommentsModule,
   ],
 })
 export class AppModule {}
