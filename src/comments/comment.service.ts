@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
-import { Comment, Page } from '../domain';
+import { Comment, Page, Reply } from '../domain';
 import { PostDocument } from '../persistence/schemas/post.schema';
 import { SyncStateDocument } from '../persistence/schemas/sync-state.schema';
-import { AdapterContext, AdapterRegistry } from '../platforms';
-import { PostNotFoundError } from './comment-errors';
+import { AdapterContext, AdapterRegistry, FetchedReply } from '../platforms';
+import {
+  CommentNotFoundError,
+  PostNotFoundError,
+  ReplyInProgressError,
+} from './comment-errors';
 import { CommentRepository } from './comment.repository';
 
 /**
@@ -40,6 +44,21 @@ export interface GetCommentsParams {
 export interface CommentListResult {
   readonly page: Page<Comment>;
   readonly syncedAt: Date;
+}
+
+/** What {@link CommentService.replyToComment} needs to post one reply. */
+export interface ReplyToCommentParams {
+  /** Caller's tenant, used to scope the comment/post lookup (A-6). */
+  readonly orgId: string;
+  /** Our internal id of the comment being replied to (the route param). */
+  readonly commentId: string;
+  /** The reply body, already validated/bounded by the request DTO. */
+  readonly text: string;
+  /**
+   * Caller-supplied dedupe key for the whole send. The same key is safe to
+   * retry: it posts to the platform at most once (RK-4).
+   */
+  readonly idempotencyKey: string;
 }
 
 /**
@@ -87,6 +106,77 @@ export class CommentService {
     const page = await this.repository.pageComments(post._id, cursor, limit);
 
     return { page, syncedAt: syncedAt ?? new Date() };
+  }
+
+  /**
+   * Post a reply to a comment and return it in the shared format (FR-2), safely
+   * under retries (RK-4). The flow is write-through: we call the platform first
+   * and only persist once it accepts, so our store never holds a reply the
+   * platform doesn't.
+   *
+   * Ordering matters for the two guarantees in the task's Definition of Done:
+   *  1. ownership — the comment and its published post must belong to `orgId`,
+   *     else {@link CommentNotFoundError} (a single, unprobeable 404);
+   *  2. claim the outbox by `idempotencyKey` *before* sending — a `sent` key
+   *     replays the stored reply (no double-post), a still-`pending` key is
+   *     refused as {@link ReplyInProgressError} (indeterminate), and only a
+   *     fresh/failed key proceeds to the send;
+   *  3. on adapter failure, mark the claim failed and rethrow the typed
+   *     {@link PlatformError} — nothing was persisted, so no orphan is left.
+   */
+  async replyToComment(params: ReplyToCommentParams): Promise<Reply> {
+    const { orgId, commentId, text, idempotencyKey } = params;
+
+    const target = await this.repository.findReplyTarget(commentId, orgId);
+    if (!target) {
+      throw new CommentNotFoundError(commentId);
+    }
+    const { comment, post } = target;
+
+    const claim = await this.repository.beginReplyClaim(
+      idempotencyKey,
+      comment._id,
+      orgId,
+    );
+    if (claim.outcome === 'already-sent') {
+      const existing = await this.repository.findPersistedReply(
+        comment._id,
+        claim.externalReplyId,
+      );
+      // Marked sent but the reply row isn't visible yet: the same narrow crash
+      // window completeReply guards against — treat it as still settling.
+      if (!existing) {
+        throw new ReplyInProgressError(idempotencyKey);
+      }
+      return existing;
+    }
+    if (claim.outcome === 'in-progress') {
+      throw new ReplyInProgressError(idempotencyKey);
+    }
+
+    const adapter = this.registry.get(post.platform);
+    const ctx: AdapterContext = {
+      platformAccountId: post.platformAccountId.toString(),
+    };
+
+    let fetched: FetchedReply;
+    try {
+      fetched = await adapter.replyToComment(ctx, comment.externalCommentId, {
+        text,
+      });
+    } catch (error) {
+      // The send failed before creating anything; release the claim so a retry
+      // with the same key can try again, and surface the platform's typed error.
+      await this.repository.abandonReplyClaim(idempotencyKey);
+      throw error;
+    }
+
+    return this.repository.completeReply(
+      target,
+      fetched,
+      idempotencyKey,
+      new Date(),
+    );
   }
 
   /** Missing bookmark, or older than the freshness window, means refresh. */

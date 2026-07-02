@@ -4,9 +4,13 @@ import { Platform } from '../common/enums/platform.enum';
 import { Comment, Page } from '../domain';
 import { PostDocument } from '../persistence/schemas/post.schema';
 import { SyncStateDocument } from '../persistence/schemas/sync-state.schema';
-import { AdapterRegistry, FetchedComment } from '../platforms';
-import { PostNotFoundError } from './comment-errors';
-import { CommentRepository } from './comment.repository';
+import { AdapterRegistry, FetchedComment, FetchedReply } from '../platforms';
+import {
+  CommentNotFoundError,
+  PostNotFoundError,
+  ReplyInProgressError,
+} from './comment-errors';
+import { CommentRepository, ReplyTarget } from './comment.repository';
 import { COMMENT_STALE_AFTER_MS, CommentService } from './comment.service';
 
 /**
@@ -32,6 +36,12 @@ describe('CommentService', () => {
   let upsertFetched: jest.Mock;
   let pageComments: jest.Mock;
   let getComments: jest.Mock;
+  let findReplyTarget: jest.Mock;
+  let beginReplyClaim: jest.Mock;
+  let completeReply: jest.Mock;
+  let abandonReplyClaim: jest.Mock;
+  let findPersistedReply: jest.Mock;
+  let replyToComment: jest.Mock;
   let service: CommentService;
 
   const post = {
@@ -80,6 +90,12 @@ describe('CommentService', () => {
     upsertFetched = jest.fn().mockResolvedValue(undefined);
     pageComments = jest.fn().mockResolvedValue(emptyLocalPage);
     getComments = jest.fn();
+    findReplyTarget = jest.fn();
+    beginReplyClaim = jest.fn();
+    completeReply = jest.fn();
+    abandonReplyClaim = jest.fn().mockResolvedValue(undefined);
+    findPersistedReply = jest.fn();
+    replyToComment = jest.fn();
 
     const repository = {
       findPublishedPost,
@@ -87,9 +103,14 @@ describe('CommentService', () => {
       saveSyncState,
       upsertFetched,
       pageComments,
+      findReplyTarget,
+      beginReplyClaim,
+      completeReply,
+      abandonReplyClaim,
+      findPersistedReply,
     } as unknown as CommentRepository;
     const registry = {
-      get: jest.fn().mockReturnValue({ getComments }),
+      get: jest.fn().mockReturnValue({ getComments, replyToComment }),
     } as unknown as AdapterRegistry;
 
     service = new CommentService(repository, registry);
@@ -256,6 +277,137 @@ describe('CommentService', () => {
 
       expect(result.page.nextCursor).toBe('next-page');
       expect(result.syncedAt).toEqual(when);
+    });
+  });
+
+  describe('replyToComment', () => {
+    const COMMENT_ID = new Types.ObjectId();
+    const IDEMPOTENCY_KEY = 'key-1';
+    const EXTERNAL_COMMENT_ID = 'ext-comment-1';
+
+    const comment = {
+      _id: COMMENT_ID,
+      externalCommentId: EXTERNAL_COMMENT_ID,
+      platform: Platform.Mock,
+    };
+    const target = { comment, post } as unknown as ReplyTarget;
+
+    const fetchedReply: FetchedReply = {
+      externalCommentId: 'ext-reply-1',
+      externalParentCommentId: EXTERNAL_COMMENT_ID,
+      author: { externalAuthorId: 'me', displayName: 'Me' },
+      text: 'thanks!',
+      platformCreatedAt: new Date(),
+    };
+
+    const savedReply = {
+      id: 'reply-doc-1',
+      postId: POST_ID.toString(),
+      platform: Platform.Mock,
+      parentCommentId: COMMENT_ID.toString(),
+      author: { id: 'me', displayName: 'Me' },
+      text: 'thanks!',
+      createdAt: fetchedReply.platformCreatedAt,
+      syncedAt: new Date(),
+    };
+
+    const reply = () =>
+      service.replyToComment({
+        orgId: ORG_ID,
+        commentId: COMMENT_ID.toString(),
+        text: 'thanks!',
+        idempotencyKey: IDEMPOTENCY_KEY,
+      });
+
+    it('rejects a missing / cross-tenant / unpublished comment', async () => {
+      findReplyTarget.mockResolvedValue(null);
+
+      await expect(reply()).rejects.toBeInstanceOf(CommentNotFoundError);
+      expect(beginReplyClaim).not.toHaveBeenCalled();
+      expect(replyToComment).not.toHaveBeenCalled();
+    });
+
+    it('claims the outbox, then writes through to the platform and persists', async () => {
+      findReplyTarget.mockResolvedValue(target);
+      beginReplyClaim.mockResolvedValue({ outcome: 'claimed' });
+      replyToComment.mockResolvedValue(fetchedReply);
+      completeReply.mockResolvedValue(savedReply);
+
+      const result = await reply();
+
+      // Claim happens before the send (the single-flight gate).
+      expect(beginReplyClaim).toHaveBeenCalledWith(
+        IDEMPOTENCY_KEY,
+        COMMENT_ID,
+        ORG_ID,
+      );
+      expect(replyToComment).toHaveBeenCalledWith(
+        { platformAccountId: ACCOUNT_ID.toString() },
+        EXTERNAL_COMMENT_ID,
+        { text: 'thanks!' },
+      );
+      expect(completeReply).toHaveBeenCalledWith(
+        target,
+        fetchedReply,
+        IDEMPOTENCY_KEY,
+        expect.any(Date),
+      );
+      expect(result).toBe(savedReply);
+      expect(abandonReplyClaim).not.toHaveBeenCalled();
+    });
+
+    it('replays the stored reply for an already-sent key without resending', async () => {
+      findReplyTarget.mockResolvedValue(target);
+      beginReplyClaim.mockResolvedValue({
+        outcome: 'already-sent',
+        externalReplyId: 'ext-reply-1',
+      });
+      findPersistedReply.mockResolvedValue(savedReply);
+
+      const result = await reply();
+
+      expect(result).toBe(savedReply);
+      // The whole point of idempotency: no second post to the platform (RK-4).
+      expect(replyToComment).not.toHaveBeenCalled();
+      expect(completeReply).not.toHaveBeenCalled();
+      expect(findPersistedReply).toHaveBeenCalledWith(
+        COMMENT_ID,
+        'ext-reply-1',
+      );
+    });
+
+    it('refuses an in-progress key rather than risk a double-post', async () => {
+      findReplyTarget.mockResolvedValue(target);
+      beginReplyClaim.mockResolvedValue({ outcome: 'in-progress' });
+
+      await expect(reply()).rejects.toBeInstanceOf(ReplyInProgressError);
+      expect(replyToComment).not.toHaveBeenCalled();
+      expect(completeReply).not.toHaveBeenCalled();
+    });
+
+    it('treats a sent claim whose reply is not yet visible as in-progress', async () => {
+      findReplyTarget.mockResolvedValue(target);
+      beginReplyClaim.mockResolvedValue({
+        outcome: 'already-sent',
+        externalReplyId: 'ext-reply-1',
+      });
+      // Marked sent, but the reply row isn't queryable yet (crash window).
+      findPersistedReply.mockResolvedValue(null);
+
+      await expect(reply()).rejects.toBeInstanceOf(ReplyInProgressError);
+      expect(replyToComment).not.toHaveBeenCalled();
+    });
+
+    it('releases the claim and rethrows the typed error when the send fails, persisting nothing', async () => {
+      const platformError = new Error('platform said no');
+      findReplyTarget.mockResolvedValue(target);
+      beginReplyClaim.mockResolvedValue({ outcome: 'claimed' });
+      replyToComment.mockRejectedValue(platformError);
+
+      await expect(reply()).rejects.toBe(platformError);
+      expect(abandonReplyClaim).toHaveBeenCalledWith(IDEMPOTENCY_KEY);
+      // No orphaned persisted reply on failure (DoD).
+      expect(completeReply).not.toHaveBeenCalled();
     });
   });
 });

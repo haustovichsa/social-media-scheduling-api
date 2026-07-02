@@ -4,10 +4,15 @@
  * everything else (the repository, the cursor codec) is an internal detail.
  */
 export { CommentsModule } from './comments.module';
-export { PostNotFoundError } from './comment-errors';
+export {
+  CommentNotFoundError,
+  PostNotFoundError,
+  ReplyInProgressError,
+} from './comment-errors';
 export {
   COMMENT_STALE_AFTER_MS,
   CommentListResult,
   CommentService,
   GetCommentsParams,
+  ReplyToCommentParams,
 } from './comment.service';

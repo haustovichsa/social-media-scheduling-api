@@ -11,8 +11,13 @@ import {
   PostDocument,
   PostStatus,
 } from '../persistence/schemas/post.schema';
-import { FetchedComment } from '../platforms';
-import { CommentRepository } from './comment.repository';
+import {
+  ReplyOutbox,
+  ReplyOutboxDocument,
+  ReplyStatus,
+} from '../persistence/schemas/reply-outbox.schema';
+import { FetchedComment, FetchedReply } from '../platforms';
+import { CommentRepository, ReplyTarget } from './comment.repository';
 
 /**
  * Integration tests for the storage mechanics the service can't exercise with a
@@ -26,6 +31,7 @@ describe('CommentRepository (in-memory Mongo)', () => {
   let repository: CommentRepository;
   let commentModel: Model<CommentEntity>;
   let postModel: Model<Post>;
+  let outboxModel: Model<ReplyOutbox>;
 
   const ORG = 'org-1';
   const EPOCH = Date.UTC(2026, 0, 1);
@@ -40,7 +46,8 @@ describe('CommentRepository (in-memory Mongo)', () => {
     repository = moduleRef.get(CommentRepository);
     commentModel = moduleRef.get(getModelToken(CommentEntity.name));
     postModel = moduleRef.get(getModelToken(Post.name));
-    await commentModel.syncIndexes();
+    outboxModel = moduleRef.get(getModelToken(ReplyOutbox.name));
+    await Promise.all([commentModel.syncIndexes(), outboxModel.syncIndexes()]);
   }, 60_000);
 
   afterAll(async () => {
@@ -49,7 +56,11 @@ describe('CommentRepository (in-memory Mongo)', () => {
   });
 
   afterEach(async () => {
-    await Promise.all([commentModel.deleteMany({}), postModel.deleteMany({})]);
+    await Promise.all([
+      commentModel.deleteMany({}),
+      postModel.deleteMany({}),
+      outboxModel.deleteMany({}),
+    ]);
   });
 
   const createPost = (overrides: Partial<Post> = {}): Promise<PostDocument> =>
@@ -253,6 +264,196 @@ describe('CommentRepository (in-memory Mongo)', () => {
       const state = await repository.getSyncState(postId);
       expect(state?.cursor).toBeNull();
       expect(state?.lastSyncedAt).toEqual(when);
+    });
+  });
+
+  describe('reply flow', () => {
+    const KEY = 'idem-1';
+
+    // Seed one stored comment on a published post and hand back the reply target
+    // the reply flow resolves — the parent everything below threads under.
+    const seedTarget = async (): Promise<ReplyTarget> => {
+      const post = await createPost();
+      await repository.upsertFetched(post, [fetched('parent', 0)], new Date());
+      const comment = await commentModel.findOne({
+        externalCommentId: 'parent',
+      });
+      return { comment: comment!, post };
+    };
+
+    const fetchedReply = (
+      externalCommentId: string,
+      parentExternalId: string,
+    ): FetchedReply => ({
+      externalCommentId,
+      externalParentCommentId: parentExternalId,
+      author: { externalAuthorId: 'me', displayName: 'Me' },
+      text: `reply-${externalCommentId}`,
+      platformCreatedAt: new Date(EPOCH + 60_000),
+    });
+
+    const claim = (key: string): Promise<ReplyOutboxDocument | null> =>
+      outboxModel.findOne({ idempotencyKey: key });
+
+    describe('findReplyTarget', () => {
+      it('resolves the owned comment together with its published post', async () => {
+        const { comment, post } = await seedTarget();
+
+        const found = await repository.findReplyTarget(
+          comment._id.toString(),
+          ORG,
+        );
+        expect(found?.comment._id.toString()).toBe(comment._id.toString());
+        expect(found?.post._id.toString()).toBe(post._id.toString());
+      });
+
+      it('returns null for another org, an unpublished post, or a bad id', async () => {
+        const { comment, post } = await seedTarget();
+
+        expect(
+          await repository.findReplyTarget(comment._id.toString(), 'other-org'),
+        ).toBeNull();
+        expect(
+          await repository.findReplyTarget('not-an-objectid', ORG),
+        ).toBeNull();
+
+        await postModel.updateOne(
+          { _id: post._id },
+          { $set: { status: PostStatus.Draft } },
+        );
+        expect(
+          await repository.findReplyTarget(comment._id.toString(), ORG),
+        ).toBeNull();
+      });
+    });
+
+    describe('beginReplyClaim', () => {
+      it('claims a fresh key with a pending outbox row', async () => {
+        const { comment } = await seedTarget();
+
+        const result = await repository.beginReplyClaim(KEY, comment._id, ORG);
+
+        expect(result).toEqual({ outcome: 'claimed' });
+        const row = await claim(KEY);
+        expect(row?.status).toBe(ReplyStatus.Pending);
+        expect(row?.commentId.toString()).toBe(comment._id.toString());
+      });
+
+      it('reports a still-pending key as in-progress instead of re-claiming', async () => {
+        const { comment } = await seedTarget();
+        await repository.beginReplyClaim(KEY, comment._id, ORG);
+
+        const second = await repository.beginReplyClaim(KEY, comment._id, ORG);
+
+        expect(second).toEqual({ outcome: 'in-progress' });
+        // The unique index means the retry created no second row.
+        expect(await outboxModel.countDocuments({ idempotencyKey: KEY })).toBe(
+          1,
+        );
+      });
+
+      it('replays an already-sent key with the platform reply id', async () => {
+        const { comment, post } = await seedTarget();
+        await repository.beginReplyClaim(KEY, comment._id, ORG);
+        await repository.completeReply(
+          { comment, post },
+          fetchedReply('r1', 'parent'),
+          KEY,
+          new Date(),
+        );
+
+        const replayed = await repository.beginReplyClaim(
+          KEY,
+          comment._id,
+          ORG,
+        );
+
+        expect(replayed).toEqual({
+          outcome: 'already-sent',
+          externalReplyId: 'r1',
+        });
+      });
+
+      it('re-drives a failed key so a retry can send again', async () => {
+        const { comment } = await seedTarget();
+        await repository.beginReplyClaim(KEY, comment._id, ORG);
+        await repository.abandonReplyClaim(KEY);
+
+        const retried = await repository.beginReplyClaim(KEY, comment._id, ORG);
+
+        expect(retried).toEqual({ outcome: 'claimed' });
+        const row = await claim(KEY);
+        expect(row?.status).toBe(ReplyStatus.Pending);
+      });
+    });
+
+    describe('completeReply', () => {
+      it('persists the reply threaded under its parent and marks the claim sent', async () => {
+        const { comment, post } = await seedTarget();
+        await repository.beginReplyClaim(KEY, comment._id, ORG);
+
+        const reply = await repository.completeReply(
+          { comment, post },
+          fetchedReply('r1', 'parent'),
+          KEY,
+          new Date(),
+        );
+
+        expect(reply.parentCommentId).toBe(comment._id.toString());
+        expect(reply.text).toBe('reply-r1');
+
+        // The reply is a first-class comment row in the same collection.
+        const stored = await commentModel.findOne({ externalCommentId: 'r1' });
+        expect(stored?.parentCommentId?.toString()).toBe(
+          comment._id.toString(),
+        );
+
+        const row = await claim(KEY);
+        expect(row?.status).toBe(ReplyStatus.Sent);
+        expect(row?.externalReplyId).toBe('r1');
+      });
+
+      it('is idempotent on { platform, externalCommentId } if the row already exists', async () => {
+        const { comment, post } = await seedTarget();
+        await repository.beginReplyClaim(KEY, comment._id, ORG);
+        await repository.completeReply(
+          { comment, post },
+          fetchedReply('r1', 'parent'),
+          KEY,
+          new Date(),
+        );
+
+        // Same external reply id (e.g. a later refresh already ingested it).
+        await repository.completeReply(
+          { comment, post },
+          { ...fetchedReply('r1', 'parent'), text: 'edited' },
+          KEY,
+          new Date(),
+        );
+
+        const rows = await commentModel.find({ externalCommentId: 'r1' });
+        expect(rows).toHaveLength(1);
+        expect(rows[0].text).toBe('edited');
+      });
+    });
+
+    describe('findPersistedReply', () => {
+      it('finds the reply by parent and external id, else null', async () => {
+        const { comment, post } = await seedTarget();
+        await repository.beginReplyClaim(KEY, comment._id, ORG);
+        await repository.completeReply(
+          { comment, post },
+          fetchedReply('r1', 'parent'),
+          KEY,
+          new Date(),
+        );
+
+        const found = await repository.findPersistedReply(comment._id, 'r1');
+        expect(found?.parentCommentId).toBe(comment._id.toString());
+        expect(
+          await repository.findPersistedReply(comment._id, 'missing'),
+        ).toBeNull();
+      });
     });
   });
 });
