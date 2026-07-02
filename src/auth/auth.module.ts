@@ -19,6 +19,9 @@ import { EnvCallerResolver } from './env-caller-resolver';
     { provide: CALLER_RESOLVER, useClass: EnvCallerResolver },
     AuthGuard,
   ],
-  exports: [AuthGuard],
+  // CALLER_RESOLVER is exported alongside AuthGuard because `@UseGuards(AuthGuard)`
+  // instantiates the guard in the *host* controller's module (e.g. CommentsModule),
+  // so the guard's own dependency must be resolvable from there — not just here.
+  exports: [AuthGuard, CALLER_RESOLVER],
 })
 export class AuthModule {}
