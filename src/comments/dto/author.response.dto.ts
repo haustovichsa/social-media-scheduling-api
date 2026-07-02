@@ -1,3 +1,5 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { Author } from '../../domain';
 
 /**
@@ -7,8 +9,15 @@ import { Author } from '../../domain';
  * that translates between them.
  */
 export class AuthorResponseDto {
+  @ApiProperty({ description: 'Platform-scoped author id.' })
   id!: string;
+
+  @ApiProperty({ description: 'Author display name.' })
   displayName!: string;
+
+  @ApiPropertyOptional({
+    description: 'Author avatar URL, if the platform gives one.',
+  })
   avatarUrl?: string;
 
   static fromDomain(author: Author): AuthorResponseDto {

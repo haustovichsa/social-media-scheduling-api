@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 /**
@@ -19,11 +20,23 @@ export const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
  * different replies simply use two different keys.
  */
 export class CreateReplyDto {
+  @ApiProperty({
+    description: 'The reply text to post to the platform.',
+    maxLength: MAX_REPLY_LENGTH,
+    example: 'Thanks for the feedback!',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(MAX_REPLY_LENGTH)
   text!: string;
 
+  @ApiProperty({
+    description:
+      'Client-owned dedupe key for the whole send. Retrying with the same key ' +
+      'never posts twice (RK-4).',
+    maxLength: MAX_IDEMPOTENCY_KEY_LENGTH,
+    example: 'a1b2c3d4-reply-once',
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(MAX_IDEMPOTENCY_KEY_LENGTH)

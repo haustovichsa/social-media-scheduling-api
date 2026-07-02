@@ -1,3 +1,4 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
@@ -18,10 +19,21 @@ export const MAX_PAGE_LIMIT = 100;
  * pipe reject any unknown query param.
  */
 export class ListCommentsQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Opaque forward cursor. Omit for the first page; echo back the previous ' +
+      'page’s `nextCursor` for subsequent pages.',
+  })
   @IsOptional()
   @IsString()
   cursor?: string;
 
+  @ApiPropertyOptional({
+    description: 'Page size.',
+    minimum: 1,
+    maximum: MAX_PAGE_LIMIT,
+    default: DEFAULT_PAGE_LIMIT,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()

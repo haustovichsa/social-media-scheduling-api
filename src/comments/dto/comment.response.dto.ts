@@ -1,3 +1,5 @@
+import { ApiProperty } from '@nestjs/swagger';
+
 import { Platform } from '../../common/enums/platform.enum';
 import { Comment } from '../../domain';
 import { AuthorResponseDto } from './author.response.dto';
@@ -8,15 +10,45 @@ import { AuthorResponseDto } from './author.response.dto';
  * serialises `Date`. Mapping domain → DTO happens here at the API boundary.
  */
 export class CommentResponseDto {
+  @ApiProperty({ description: 'Our internal comment id.' })
   id!: string;
+
+  @ApiProperty({
+    description: 'Our internal id of the post this comment belongs to.',
+  })
   postId!: string;
+
+  @ApiProperty({
+    enum: Platform,
+    description: 'The platform this comment came from.',
+  })
   platform!: Platform;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Parent comment id for a threaded reply, or null for a top-level comment.',
+  })
   parentCommentId!: string | null;
+
+  @ApiProperty({ type: AuthorResponseDto })
   author!: AuthorResponseDto;
+
+  @ApiProperty({ description: 'The comment body.' })
   text!: string;
-  /** ISO-8601. Platform-reported creation time. */
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'ISO-8601. Platform-reported creation time.',
+  })
   createdAt!: string;
-  /** ISO-8601. When we last reconciled this comment with the platform. */
+
+  @ApiProperty({
+    format: 'date-time',
+    description:
+      'ISO-8601. When we last reconciled this comment with the platform.',
+  })
   syncedAt!: string;
 
   static fromDomain(comment: Comment): CommentResponseDto {

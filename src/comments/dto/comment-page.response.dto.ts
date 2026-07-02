@@ -1,3 +1,5 @@
+import { ApiProperty } from '@nestjs/swagger';
+
 import { Comment, Page } from '../../domain';
 import { CommentResponseDto } from './comment.response.dto';
 
@@ -9,10 +11,21 @@ import { CommentResponseDto } from './comment.response.dto';
  * copy (A-4, NFR-6).
  */
 export class CommentPageResponseDto {
+  @ApiProperty({ type: [CommentResponseDto] })
   comments!: CommentResponseDto[];
-  /** Opaque cursor for the next page, or `null` when there are no more. */
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Opaque cursor for the next page, or null when there are no more.',
+  })
   nextCursor!: string | null;
-  /** ISO-8601. How fresh this page is against the platform. */
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'ISO-8601. How fresh this page is against the platform.',
+  })
   syncedAt!: string;
 
   static fromDomain(
