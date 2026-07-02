@@ -5,8 +5,8 @@ import { Author } from '../../domain';
 /**
  * Wire shape of an {@link Author}. A near-copy of the domain type today, but kept
  * separate on purpose: the domain model is internal and free to change, while
- * this is the published API contract. The `fromDomain` mapper is the one place
- * that translates between them.
+ * this is the published API contract. `fromDomain` is the one place that
+ * translates between them.
  */
 export class AuthorResponseDto {
   @ApiProperty({ description: 'Platform-scoped author id.' })

@@ -12,14 +12,12 @@ import {
 } from './facebook-graph.types';
 
 /**
- * The transport seam between {@link FacebookAdapter} and the Graph API. Keeping
- * it an interface lets the adapter be unit-tested with a fake (no network) and
- * lets the real HTTP/auth concerns evolve independently behind this same
- * contract. The per-account access token is resolved by the adapter (via the
- * TokenProvider) and handed in per call, so this client stays a pure transport
- * with no credential lookup of its own. Its one job at this boundary: return raw
- * Graph payloads or throw a typed {@link PlatformError}, never a bare HTTP
- * failure.
+ * Transport seam between {@link FacebookAdapter} and the Graph API. Making it an
+ * interface lets the adapter be unit-tested with a fake (no network) and lets
+ * the real HTTP/auth code evolve behind this contract. The adapter resolves the
+ * access token and passes it in per call, so this client is pure transport with
+ * no credential lookup. Its one job: return raw Graph payloads or throw a typed
+ * {@link PlatformError}, never a bare HTTP failure.
  */
 export interface FacebookGraphClient {
   listComments(
@@ -34,7 +32,7 @@ export interface FacebookGraphClient {
   ): Promise<FacebookComment>;
 }
 
-/** DI token for the Graph client, so the adapter depends on the interface. */
+/** DI token so the adapter depends on the interface, not this class. */
 export const FACEBOOK_GRAPH_CLIENT = Symbol('FACEBOOK_GRAPH_CLIENT');
 
 const GRAPH_BASE_URL = 'https://graph.facebook.com/v19.0';
@@ -42,17 +40,15 @@ const COMMENT_FIELDS =
   'id,message,created_time,from{id,name,picture},parent{id}';
 
 /**
- * Real Graph API client (a partial, realistic sketch). It builds Graph requests,
- * and — the part that matters for the contract — maps every HTTP failure onto
- * the typed error taxonomy so no raw Graph response ever leaves the adapter
- * layer (AC-5). Network transport is wired but the tests drive the adapter with
- * a fake client, so this class is the integration seam rather than the unit
- * under test.
+ * Real Graph API client (partial sketch). It builds Graph requests and maps
+ * every HTTP failure onto the typed error taxonomy, so no raw Graph response
+ * ever leaves the adapter layer. Transport is wired but the tests drive the
+ * adapter with a fake client, so this class is the integration seam, not the
+ * unit under test.
  *
- * Auth: the caller-supplied access token goes onto the outbound Graph request in
- * the query string (as Graph requires), so the built URL is never logged — error
- * messages carry only the status code, never the URL — to keep the token out of
- * logs (RK-6).
+ * Auth: the access token goes in the query string (as Graph requires), so the
+ * URL is never logged — error messages carry only the status code, to keep the
+ * token out of logs.
  */
 export class HttpFacebookGraphClient implements FacebookGraphClient {
   async listComments(
@@ -81,7 +77,7 @@ export class HttpFacebookGraphClient implements FacebookGraphClient {
     message: string,
   ): Promise<FacebookComment> {
     const params = new URLSearchParams({
-      // Ask for the created comment's fields back so we can return a full reply
+      // Ask for the new comment's fields back so we return a full reply
       // without a second round-trip.
       fields: COMMENT_FIELDS,
       access_token: accessToken,

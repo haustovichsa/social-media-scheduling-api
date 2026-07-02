@@ -8,15 +8,14 @@ export const DEFAULT_PAGE_LIMIT = 25;
 export const MAX_PAGE_LIMIT = 100;
 
 /**
- * Query parameters for `GET /posts/:postId/comments` (FR-1). Cursor paging only:
- * the caller either omits `cursor` (first page) or echoes back the `nextCursor`
- * from the previous page. `cursor` stays a plain opaque string here — this layer
- * never interprets it (see {@link PageCursor}).
+ * Query parameters for `GET /posts/:postId/comments`. Cursor paging only: omit
+ * `cursor` for the first page, or echo back the previous page's `nextCursor`.
+ * `cursor` stays an opaque string here — this layer never reads it (see
+ * {@link PageCursor}).
  *
- * `limit` arrives as a string on the query string, so `@Type(() => Number)`
- * coerces it before the numeric checks run (the global `ValidationPipe` is
- * configured with `transform: true`). `whitelist`/`forbidNonWhitelisted` on that
- * pipe reject any unknown query param.
+ * `limit` arrives as a string, so `@Type(() => Number)` coerces it before the
+ * numeric checks run. The global `ValidationPipe`'s `whitelist` /
+ * `forbidNonWhitelisted` reject any unknown query param.
  */
 export class ListCommentsQueryDto {
   @ApiPropertyOptional({

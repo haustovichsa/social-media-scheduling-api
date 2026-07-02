@@ -10,10 +10,9 @@ import { Post, PostSchema } from './schemas/post.schema';
 
 /**
  * Registers every collection's model with Mongoose and re-exports
- * `MongooseModule` so feature modules can inject the models they need via
- * `@InjectModel(...)` without re-declaring the schema definitions. The model
- * names match the schema class names (and the `ref` strings used across
- * schemas), so `ref` population resolves without extra configuration.
+ * `MongooseModule` so feature modules can inject models via `@InjectModel(...)`
+ * without re-declaring the schemas. Model names match the schema class names (and
+ * the `ref` strings), so `ref` population resolves without extra config.
  */
 const models = MongooseModule.forFeature([
   { name: PlatformAccount.name, schema: PlatformAccountSchema },

@@ -15,17 +15,16 @@ import {
 
 /**
  * The one place a platform plugs in. To add a platform: implement
- * {@link PlatformAdapter} in a new `@Injectable()` class and add that class to
- * the `adapters` array below. That is the entire wiring change — the factory
- * collects it into {@link PLATFORM_ADAPTERS}, the {@link AdapterRegistry} indexes
- * it by `platform`, and every service resolves it through the registry without a
- * single edit upstream (AC-3).
+ * {@link PlatformAdapter} in a new `@Injectable()` class and add it to the
+ * `adapters` array below. That is the entire wiring change — the factory collects
+ * it into {@link PLATFORM_ADAPTERS}, {@link AdapterRegistry} indexes it by
+ * `platform`, and every service resolves it through the registry, no upstream edit.
  */
 const adapters: Type<PlatformAdapter>[] = [MockAdapter, FacebookAdapter];
 
 /**
- * Support providers an adapter needs (transport, config). These are wiring for a
- * specific adapter, not adapters themselves, so they stay out of `adapters`.
+ * Support providers an adapter needs (transport, config). Wiring for a specific
+ * adapter, not adapters themselves, so they stay out of `adapters`.
  */
 const supportProviders: Provider[] = [
   { provide: FACEBOOK_GRAPH_CLIENT, useClass: HttpFacebookGraphClient },
@@ -33,8 +32,8 @@ const supportProviders: Provider[] = [
 
 @Module({
   // CredentialsModule supplies the TOKEN_PROVIDER adapters resolve tokens
-  // through. It has no database dependency, so the platform wiring stays
-  // unit-testable without a Mongo connection.
+  // through. No database dependency, so platform wiring stays unit-testable
+  // without a Mongo connection.
   imports: [CredentialsModule],
   providers: [
     ...adapters,
@@ -44,10 +43,9 @@ const supportProviders: Provider[] = [
       // registry consumes. `inject` mirrors `adapters`, so registering a
       // platform is the single edit above — nothing here changes.
       //
-      // Per-platform rate limiting and retry/backoff are a deliberately
-      // designed-not-built seam here: a decorator wrapping each adapter at this
-      // exact point would add them without touching the registry or any caller
-      // (see DESIGN.md §8).
+      // Per-platform rate limiting and retry/backoff are a designed-not-built
+      // seam here: a decorator wrapping each adapter at this point would add them
+      // without touching the registry or any caller (see DESIGN.md).
       provide: PLATFORM_ADAPTERS,
       useFactory: (...instances: PlatformAdapter[]) => instances,
       inject: adapters,

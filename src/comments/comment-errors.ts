@@ -1,15 +1,14 @@
 /**
- * Typed domain errors the comment services throw. Like the {@link PlatformError}
- * taxonomy, these stay transport-agnostic: the service layer signals *what* went
- * wrong, and the API edge (the exception filter) owns the HTTP mapping. Keeping
- * HTTP concerns out of the service is what lets it be reused and unit-tested
- * without the web layer.
+ * Typed errors the comment services throw. Like the {@link PlatformError}
+ * family, they stay transport-agnostic: the service says what went wrong, and the
+ * API edge (the exception filter) owns the HTTP mapping. Keeping HTTP out of the
+ * service lets it be reused and unit-tested without the web layer.
  */
 
 /**
- * The requested post doesn't exist, isn't published, or isn't owned by the
- * caller's org (A-6). The three are deliberately indistinguishable so a caller
- * can't probe for posts it doesn't own — the edge maps this to a single 404.
+ * The post doesn't exist, isn't published, or isn't owned by the caller's org.
+ * The three are kept indistinguishable so callers can't probe for posts they
+ * don't own — the edge maps this to one 404.
  */
 export class PostNotFoundError extends Error {
   constructor(readonly postId: string) {
@@ -20,9 +19,9 @@ export class PostNotFoundError extends Error {
 
 /**
  * The comment being replied to doesn't exist, its post isn't published, or
- * neither is owned by the caller's org (A-6). As with {@link PostNotFoundError}
- * the causes are deliberately indistinguishable — the edge maps this to a single
- * 404 so a caller can't probe for comments it doesn't own.
+ * neither is owned by the caller's org. As with {@link PostNotFoundError} the
+ * causes are kept indistinguishable — the edge maps this to one 404 so callers
+ * can't probe for comments they don't own.
  */
 export class CommentNotFoundError extends Error {
   constructor(readonly commentId: string) {

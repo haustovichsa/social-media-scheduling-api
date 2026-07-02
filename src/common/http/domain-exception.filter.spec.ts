@@ -23,9 +23,9 @@ import { ApiErrorResponse } from './api-error.response';
 import { DomainExceptionFilter } from './domain-exception.filter';
 
 /**
- * Verifies the taxonomy → HTTP mapping (AC-5): every typed error becomes a
- * documented status in the uniform envelope, and no platform `cause` leaks into
- * the response body. The `Response` is a spy capturing status, headers and body.
+ * Verifies the error-to-HTTP mapping: every typed error becomes a documented
+ * status in the uniform envelope, and no platform `cause` leaks into the body.
+ * The `Response` is a spy capturing status, headers and body.
  */
 describe('DomainExceptionFilter', () => {
   let filter: DomainExceptionFilter;
@@ -33,7 +33,7 @@ describe('DomainExceptionFilter', () => {
   let json: jest.Mock<void, [ApiErrorResponse]>;
   let setHeader: jest.Mock;
 
-  // Silence the operator-facing logs the filter emits for 5xx/upstream faults.
+  // Silence the logs the filter emits for 5xx/upstream faults.
   beforeAll(() => {
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);

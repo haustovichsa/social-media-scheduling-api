@@ -4,9 +4,8 @@ import { HydratedDocument, Types } from 'mongoose';
 import { Platform } from '../../common/enums/platform.enum';
 
 /**
- * Lifecycle of a post in the scheduling system. The comment feature only ever
- * operates on posts that are already `published` — that is the precondition for
- * reading comments and replying (FR-1/FR-2, A-2).
+ * Lifecycle of a post. The comment feature only operates on `published` posts —
+ * that's the precondition for reading comments and replying.
  */
 export enum PostStatus {
   Draft = 'draft',
@@ -15,9 +14,9 @@ export enum PostStatus {
 }
 
 /**
- * A post the scheduler has (or will have) published to a platform. We keep a
- * local record so comments can point at it by our own `_id` while still
- * carrying the `externalPostId` the adapter needs to call the platform API.
+ * A post the scheduler has (or will) published to a platform. We keep a local
+ * record so comments can point at it by our own `_id`, while still carrying the
+ * `externalPostId` the adapter needs to call the platform API.
  */
 @Schema({ collection: 'posts', timestamps: true })
 export class Post {
@@ -36,7 +35,7 @@ export class Post {
   @Prop({ required: true, enum: PostStatus, default: PostStatus.Draft })
   status!: PostStatus;
 
-  /** Tenant scope for ownership checks (A-6). */
+  /** Tenant scope for ownership checks. */
   @Prop({ required: true, index: true })
   orgId!: string;
 }
@@ -44,6 +43,6 @@ export class Post {
 export type PostDocument = HydratedDocument<Post>;
 export const PostSchema = SchemaFactory.createForClass(Post);
 
-// A published post maps to exactly one external post per platform; this both
-// enforces that and speeds up the lookup adapters do before fetching comments.
+// A published post maps to exactly one external post per platform. This enforces
+// that and speeds up the lookup adapters do before fetching comments.
 PostSchema.index({ platform: 1, externalPostId: 1 }, { unique: true });

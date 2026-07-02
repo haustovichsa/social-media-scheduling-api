@@ -8,10 +8,10 @@ import { PersistenceModule } from './persistence.module';
 import { Comment } from './schemas/comment.schema';
 
 /**
- * Verifies the two guarantees the data model exists to provide (TASK-02 DoD):
- * comment identity/uniqueness and self-referential threading. Runs against a
- * real (in-memory) Mongo so the indexes are actually built and enforced, not
- * just declared.
+ * Verifies the two guarantees the data model provides: comment
+ * identity/uniqueness and self-referential threading. Runs against a real
+ * (in-memory) Mongo so the indexes are actually built and enforced, not just
+ * declared.
  */
 describe('PersistenceModule (in-memory Mongo)', () => {
   let mongo: MongoMemoryServer;
@@ -27,7 +27,7 @@ describe('PersistenceModule (in-memory Mongo)', () => {
 
     commentModel = moduleRef.get<Model<Comment>>(getModelToken(Comment.name));
 
-    // Force declared indexes to be built before we assert on uniqueness.
+    // Build the declared indexes before asserting on uniqueness.
     await commentModel.syncIndexes();
   }, 60_000);
 

@@ -8,10 +8,10 @@ import { MockAdapter } from './mock.adapter';
 const CTX: AdapterContext = { platformAccountId: 'acc-1' };
 
 /**
- * Exercises the MockAdapter against the behaviours every adapter must honour
- * (the contract TASK-12 formalises): opaque cursor round-tripping, full
- * traversal without gaps or repeats, a null cursor at end-of-list, and typed
- * failures. A fresh adapter per test keeps the in-memory store deterministic.
+ * Tests MockAdapter against the behaviours every adapter must honor: opaque
+ * cursor round-tripping, full traversal with no gaps or repeats, a null cursor
+ * at end-of-list, and typed failures. A fresh adapter per test keeps the store
+ * deterministic.
  */
 describe('MockAdapter', () => {
   let adapter: MockAdapter;
@@ -97,8 +97,8 @@ describe('MockAdapter', () => {
   });
 
   it('flattens a reply that would exceed max depth onto the allowed ancestor', async () => {
-    // m-r2 is already at depth 2 (the cap); replying to it must not create a
-    // depth-3 comment — it re-parents onto m-r2's parent, m-r1.
+    // m-r2 is already at depth 2 (the cap), so replying to it must not create
+    // a depth-3 comment — it re-parents onto m-r2's parent, m-r1.
     const reply = await adapter.replyToComment(CTX, 'm-r2', {
       text: 'still here',
     });

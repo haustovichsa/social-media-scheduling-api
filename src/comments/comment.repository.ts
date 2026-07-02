@@ -17,12 +17,11 @@ import { FetchedComment, FetchedReply } from '../platforms';
 import { encodeCommentCursor, decodeCommentCursor } from './comment-cursor';
 
 /**
- * The comment being replied to, resolved together with its post so the reply
- * flow has everything one lookup needs: the target comment's external id and
- * platform, and the post's `platformAccountId` — the key the adapter's
- * `TokenProvider` resolves to a token. Both are re-checked against the caller's
- * org, so a cross-tenant or unpublished target is indistinguishable from a
- * missing one.
+ * The comment being replied to plus its post, so the reply flow has everything
+ * in one lookup: the comment's external id and platform, and the post's
+ * `platformAccountId` (the key the adapter turns into a token). Both are checked
+ * against the caller's org, so a cross-tenant or unpublished target looks the
+ * same as not found.
  */
 export interface ReplyTarget {
   readonly comment: CommentDocument;
@@ -30,16 +29,16 @@ export interface ReplyTarget {
 }
 
 /**
- * All persistence for the comment feature, kept behind one class so
- * {@link CommentService} depends on a small, mockable seam and never touches a
- * Mongoose model directly — the policy (when to refresh) stays separate from the
- * storage mechanics (how comments are paged and upserted).
+ * All comment persistence behind one class, so {@link CommentService} depends on
+ * a small, mockable seam and never touches a Mongoose model directly. Policy
+ * (when to refresh) stays separate from storage (how comments are paged and
+ * upserted).
  *
- * Two identity rules from the data model shape everything here:
+ * Two identity rules shape everything here:
  *  - a comment's identity is `{ platform, externalCommentId }` (the upsert key),
  *    so a refresh updates the existing row instead of duplicating it;
- *  - threading is by our own `_id` (`parentCommentId` is a self-`ObjectId`), so
- *    ingest must resolve each fetched comment's *external* parent id to our id.
+ *  - threading is by our own `_id`, so ingest must map each fetched comment's
+ *    external parent id to our id.
  */
 @Injectable()
 export class CommentRepository {
@@ -51,12 +50,10 @@ export class CommentRepository {
   ) {}
 
   /**
-   * The published post identified by `postId` *and* owned by `orgId`, or `null`.
-   * Scoping the query by `orgId` (not just filtering after load) means a
-   * cross-tenant id is indistinguishable from a missing one — the service maps
-   * both to a 404, so ownership can't be probed (A-6, defence in depth behind the
-   * auth guard). A syntactically invalid id is treated as "not found" rather
-   * than throwing a cast error.
+   * The published post with this `postId` owned by `orgId`, or `null`. Scoping
+   * the query by `orgId` means a cross-tenant id looks the same as not found —
+   * the service maps both to a 404, so callers can't probe for ownership. An
+   * invalid id is treated as "not found" rather than throwing a cast error.
    */
   async findPublishedPost(
     postId: string,
@@ -75,16 +72,15 @@ export class CommentRepository {
   }
 
   /**
-   * Upsert one batch of fetched comments into the local store, keyed by
-   * `{ platform, externalCommentId }`, stamping `syncedAt` so freshness reflects
-   * this reconciliation. Returns nothing — the read path re-queries the store.
+   * Upsert one batch of fetched comments, keyed by
+   * `{ platform, externalCommentId }`, stamping `syncedAt`. Returns nothing — the
+   * read path re-queries the store.
    *
-   * Parent resolution: platforms stream (and we page) oldest-first, so a parent
-   * normally precedes its replies. We resolve each fetched comment's
-   * `externalParentCommentId` to our `_id` from a batch-local map first, falling
-   * back to a lookup for a parent ingested on an earlier page. A reply whose
-   * parent we haven't seen yet lands top-level (`null`) for now and is re-threaded
-   * on a later refresh once the parent exists — we never drop it.
+   * Parents come oldest-first, so a parent normally arrives before its replies.
+   * We map each fetched comment's `externalParentCommentId` to our `_id` from
+   * this batch first, then fall back to a stored parent from an earlier page. A
+   * reply whose parent we haven't seen lands top-level (`null`) and gets
+   * re-threaded on a later refresh — we never drop it.
    */
   async upsertFetched(
     post: PostDocument,
@@ -112,10 +108,10 @@ export class CommentRepository {
   }
 
   /**
-   * One page of a post's comments in the shared format, oldest-first. Uses keyset
-   * paging on `{ platformCreatedAt, _id }` (the read index) and fetches
-   * `limit + 1` rows to tell whether a further page exists without a second
-   * count query. `nextCursor` is `null` at end of list.
+   * One page of a post's comments in our shared shape, oldest-first. Keyset
+   * paging on `{ platformCreatedAt, _id }`; fetches `limit + 1` rows to tell if
+   * there's another page without a second count query. `nextCursor` is `null` at
+   * end of list.
    */
   async pageComments(
     postId: Types.ObjectId,
@@ -126,9 +122,8 @@ export class CommentRepository {
 
     if (cursor) {
       const { createdAt, id } = decodeCommentCursor(cursor);
-      // Everything strictly after the previous page's last item under the total
-      // order (createdAt, _id): a later timestamp, or the same timestamp with a
-      // greater id.
+      // Everything after the previous page's last item: a later timestamp, or
+      // the same timestamp with a greater id.
       filter.$or = [
         { platformCreatedAt: { $gt: createdAt } },
         { platformCreatedAt: createdAt, _id: { $gt: id } },
@@ -155,11 +150,11 @@ export class CommentRepository {
   }
 
   /**
-   * The comment `commentId` and its post, both scoped to `orgId` and the post
-   * published — the ownership check for the reply flow (A-6). Returns `null` if
-   * the comment is missing, the post isn't published, or either belongs to
-   * another org; the service maps all of these to a single 404 so ownership
-   * can't be probed. An invalid id is treated as "not found", not an error.
+   * The comment and its post, both scoped to `orgId` with the post published —
+   * the ownership check for the reply flow. Returns `null` if the comment is
+   * missing, the post isn't published, or either belongs to another org; the
+   * service maps all of these to one 404 so callers can't probe for ownership.
+   * An invalid id is treated as "not found", not an error.
    */
   async findReplyTarget(
     commentId: string,
@@ -174,8 +169,8 @@ export class CommentRepository {
     if (!comment) {
       return null;
     }
-    // Reuse the read flow's ownership predicate so "owned + published" has a
-    // single definition across both entry points.
+    // Reuse the read flow's check so "owned + published" means the same thing
+    // for both entry points.
     const post = await this.findPublishedPost(comment.postId.toString(), orgId);
     if (!post) {
       return null;
@@ -184,13 +179,12 @@ export class CommentRepository {
   }
 
   /**
-   * Persist a reply the platform just accepted and return it in canonical form.
+   * Persist a reply the platform just accepted and return it in our shared shape.
    *
    * The reply is upserted into the same `comments` collection as any other
-   * comment, keyed by `{ platform, externalCommentId }` so it reconciles with a
-   * later refresh instead of duplicating, and threaded under the comment we
-   * replied to (`target.comment`). Its `parentCommentId` is non-null by
-   * construction (it is `target.comment._id`).
+   * comment, keyed by `{ platform, externalCommentId }` so a later refresh
+   * updates it instead of duplicating, and threaded under the comment we replied
+   * to. Its `parentCommentId` is always set (it's `target.comment._id`).
    */
   async saveReply(
     target: ReplyTarget,
@@ -205,13 +199,12 @@ export class CommentRepository {
   }
 
   /**
-   * The one place a comment row is written: an identity-keyed upsert on
-   * `{ platform, externalCommentId }` so a re-fetch (or a reply already ingested
-   * by a refresh) updates the existing row instead of duplicating. Shared by the
-   * read-flow ingest ({@link upsertFetched}) and the reply flow
-   * ({@link saveReply}); the two differ only in how `parentCommentId` is derived,
-   * which the caller passes in. `now` stamps both `syncedAt` and, on first
-   * insert, `ingestedAt`.
+   * The one place a comment row is written: an upsert on
+   * `{ platform, externalCommentId }` so a re-fetch updates the existing row
+   * instead of duplicating. Shared by ingest ({@link upsertFetched}) and the
+   * reply flow ({@link saveReply}); they differ only in the `parentCommentId`
+   * the caller passes in. `now` stamps `syncedAt`, and `ingestedAt` on first
+   * insert.
    */
   private upsertCommentRow(
     post: PostDocument,
@@ -245,9 +238,9 @@ export class CommentRepository {
   }
 
   /**
-   * Map a fetched comment's external parent id to our internal `_id`: this
-   * batch's already-upserted rows first, then a stored parent from an earlier
-   * page. `null` (top-level) and an as-yet-unseen parent both resolve to `null`.
+   * Map a fetched comment's external parent id to our `_id`: this batch's rows
+   * first, then a stored parent from an earlier page. A top-level comment and an
+   * unseen parent both resolve to `null`.
    */
   private async resolveParentId(
     platform: Platform,
@@ -273,7 +266,7 @@ export class CommentRepository {
   }
 }
 
-/** Persistence author → canonical {@link Author}: rename the external id key. */
+/** Persistence author → {@link Author}: rename the external id key. */
 function toDomainComment(doc: CommentDocument): Comment {
   const author: Author = {
     id: doc.author.externalAuthorId,
@@ -296,10 +289,10 @@ function toDomainComment(doc: CommentDocument): Comment {
 }
 
 /**
- * Persistence document → canonical {@link Reply}. A reply is structurally a
- * {@link Comment} whose parent is guaranteed non-null; we assert that here (it
- * holds by construction — {@link CommentRepository.saveReply} always sets a
- * parent) so the caller gets the tighter type without its own null check.
+ * Persistence document → {@link Reply}. A reply is a {@link Comment} whose parent
+ * is never null; {@link CommentRepository.saveReply} always sets one, so we
+ * assert that here and hand the caller the tighter type without its own null
+ * check.
  */
 function toDomainReply(doc: CommentDocument): Reply {
   const comment = toDomainComment(doc);

@@ -9,15 +9,13 @@ import { CommentRepository, ReplyTarget } from './comment.repository';
 import { CommentService } from './comment.service';
 
 /**
- * Unit tests for the comment service. The repository and the resolved adapter are
- * mocked, so these assert *behaviour* — when a refresh runs, how it drains the
- * platform, and the write-through reply flow — without a database or a network.
- * The repository's own storage mechanics are covered separately against
- * in-memory Mongo.
+ * Unit tests for the comment service. The repository and adapter are mocked, so
+ * these assert behaviour — when a refresh runs, how it drains the platform, and
+ * the write-through reply flow — without a database or network. The repository's
+ * own storage is covered separately against in-memory Mongo.
  *
- * The collaborators are built from standalone `jest.fn()`s (rather than spying on
- * class methods) so assertions reference plain function values, not unbound
- * methods.
+ * Collaborators are standalone `jest.fn()`s (not spies on class methods) so
+ * assertions reference plain function values, not unbound methods.
  */
 describe('CommentService', () => {
   const POST_ID = new Types.ObjectId();

@@ -2,11 +2,11 @@ import { runAdapterContractTests } from '../../adapter-contract.shared-spec';
 import { MockAdapter } from './mock.adapter';
 
 /**
- * Runs the reusable {@link runAdapterContractTests adapter contract} against the
- * MockAdapter (TASK-12). The mock's own `mock.adapter.spec.ts` covers its
- * specifics (seed data, flattening at the cap); this file asserts it honours the
- * *shared* contract every platform must — the guarantee that makes "add a
- * platform = write an adapter" safe (AC-3, RK-7).
+ * Runs the reusable {@link runAdapterContractTests adapter contract} against
+ * MockAdapter. The mock's own `mock.adapter.spec.ts` covers its specifics (seed
+ * data, flattening at the cap); this file asserts it honors the shared contract
+ * every platform must — the guarantee that makes "add a platform = write an
+ * adapter" safe.
  */
 runAdapterContractTests({
   description: 'MockAdapter',

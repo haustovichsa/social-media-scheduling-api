@@ -4,16 +4,15 @@ import { HydratedDocument } from 'mongoose';
 import { Platform } from '../../common/enums/platform.enum';
 
 /**
- * A connected social account belonging to one org. This is the unit that owns
- * OAuth credentials on a platform. We never store the token itself here — only
- * `tokenRef`, an opaque handle the {@link TokenProvider} (TASK-06) resolves to a
- * live secret out of a secret store, so tokens never land in Mongo, logs, or
- * API responses (RK-6).
+ * A connected social account belonging to one org — the unit that owns OAuth
+ * credentials on a platform. We never store the token here, only `tokenRef`: an
+ * opaque handle the {@link TokenProvider} resolves to a live secret from a secret
+ * store, so tokens never land in Mongo, logs, or API responses.
  */
 @Schema({ collection: 'platform_accounts', timestamps: true })
 export class PlatformAccount {
-  // No standalone index: platform-only lookups are served by the leftmost
-  // prefix of the { platform, externalAccountId } compound index below.
+  // No standalone index: platform-only lookups use the leftmost prefix of the
+  // { platform, externalAccountId } compound index below.
   @Prop({ required: true, enum: Platform })
   platform!: Platform;
 
@@ -21,7 +20,7 @@ export class PlatformAccount {
   @Prop({ required: true })
   externalAccountId!: string;
 
-  /** Tenant that owns this account; every read/write is scoped by it (A-6). */
+  /** Tenant that owns this account; every read/write is scoped by it. */
   @Prop({ required: true, index: true })
   orgId!: string;
 

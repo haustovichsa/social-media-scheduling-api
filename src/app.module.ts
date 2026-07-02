@@ -7,10 +7,7 @@ import { NodeEnv, validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
 import { PersistenceModule } from './persistence/persistence.module';
 
-/**
- * Root module and DI composition root. Feature modules are registered here;
- * there is no hand-wired container — Nest's DI graph wires everything.
- */
+/** Root module. Feature modules are registered here and Nest's DI wires them. */
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -21,9 +18,8 @@ import { PersistenceModule } from './persistence/persistence.module';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         uri: config.getOrThrow<string>('MONGODB_URI'),
-        // Let Mongoose build the declared indexes on connect outside of
-        // production; in production indexes should be applied deliberately
-        // (migration/ops) rather than on every boot against a live dataset.
+        // Build indexes on connect outside production. In production, apply
+        // them deliberately via migration/ops, not on every boot.
         autoIndex:
           config.getOrThrow<NodeEnv>('NODE_ENV') !== NodeEnv.Production,
       }),

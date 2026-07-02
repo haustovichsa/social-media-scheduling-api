@@ -5,23 +5,22 @@ import { CALLER_RESOLVER } from './caller-resolver';
 import { EnvCallerResolver } from './env-caller-resolver';
 
 /**
- * Owns request authentication (NFR-4, AC-4). Binds the {@link CallerResolver}
- * seam to the env-backed dev stub and exposes the {@link AuthGuard} that feature
- * modules put in front of their routes with `@UseGuards`. Swap
- * {@link EnvCallerResolver} for a real authenticator here and nothing upstream
- * changes.
+ * Owns request authentication. Binds the {@link CallerResolver} seam to the
+ * env-backed dev stub and exposes the {@link AuthGuard} that feature modules put
+ * in front of routes with `@UseGuards`. Swap {@link EnvCallerResolver} for a real
+ * authenticator here and nothing upstream changes.
  *
- * Deliberately database-free — like {@link CredentialsModule} — so any module
- * that guards its routes can be unit-tested without a Mongo connection.
+ * Database-free (like {@link CredentialsModule}) so any module that guards its
+ * routes can be unit-tested without a Mongo connection.
  */
 @Module({
   providers: [
     { provide: CALLER_RESOLVER, useClass: EnvCallerResolver },
     AuthGuard,
   ],
-  // CALLER_RESOLVER is exported alongside AuthGuard because `@UseGuards(AuthGuard)`
-  // instantiates the guard in the *host* controller's module (e.g. CommentsModule),
-  // so the guard's own dependency must be resolvable from there — not just here.
+  // Export CALLER_RESOLVER alongside AuthGuard: `@UseGuards(AuthGuard)`
+  // instantiates the guard in the host controller's module (e.g. CommentsModule),
+  // so the guard's dependency must be resolvable from there too.
   exports: [AuthGuard, CALLER_RESOLVER],
 })
 export class AuthModule {}

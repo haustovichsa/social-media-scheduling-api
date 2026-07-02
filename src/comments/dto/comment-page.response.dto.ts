@@ -4,11 +4,10 @@ import { Comment, Page } from '../../domain';
 import { CommentResponseDto } from './comment.response.dto';
 
 /**
- * Wire shape of one page of comments (FR-1, AC-1). Carries the paged items, the
- * opaque `nextCursor` to fetch the following page (`null` at end of list), and a
- * list-level `syncedAt` telling the caller how fresh this view is — the read
- * service surfaces staleness rather than hiding the fact that this is a local
- * copy (A-4, NFR-6).
+ * Wire shape of one page of comments: the items, the opaque `nextCursor` for the
+ * following page (`null` at end of list), and a list-level `syncedAt` telling the
+ * caller how fresh this view is — we surface staleness rather than hide that this
+ * is a local copy.
  */
 export class CommentPageResponseDto {
   @ApiProperty({ type: [CommentResponseDto] })

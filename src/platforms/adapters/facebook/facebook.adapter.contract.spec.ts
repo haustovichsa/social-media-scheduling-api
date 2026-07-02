@@ -10,12 +10,12 @@ import {
 } from './facebook-graph.types';
 
 /**
- * Runs the same reusable contract against the FacebookAdapter, backed by a
- * seeded fake Graph client (no network). Proving the *identical* suite passes
- * for a second, structurally different adapter is the point of the contract
- * (AC-3, RK-7): the read/reply guarantees hold regardless of the platform behind
- * them. Facebook-specific mapping and depth-flattening are unit-tested in
- * `facebook.adapter.spec.ts`; this file only asserts the shared behaviour.
+ * Runs the same reusable contract against FacebookAdapter, backed by a seeded
+ * fake Graph client (no network). Passing the identical suite for a second,
+ * structurally different adapter is the point of the contract: the read/reply
+ * guarantees hold whatever platform sits behind them. Facebook-specific mapping
+ * and depth-flattening are unit-tested in `facebook.adapter.spec.ts`; this file
+ * only asserts the shared behaviour.
  */
 
 const rawComment = (

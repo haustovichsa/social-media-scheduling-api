@@ -15,14 +15,14 @@ import { RateLimitError } from '../src/platforms/platform-errors';
 import { configureApp } from '../src/setup-app';
 
 /**
- * HTTP-level tests for the comment endpoints (TASK-09/10), wired exactly as
- * `main.ts` wires them via the shared {@link configureApp} — global
- * `ValidationPipe` + `DomainExceptionFilter` — plus the real {@link AuthGuard}
- * over a stub {@link CallerResolver}. The {@link CommentService} is mocked so the
- * run needs no Mongo or network. They prove the edge end to end: auth rejects
+ * HTTP-level tests for the comment endpoints, wired exactly as `main.ts` does via
+ * the shared {@link configureApp} — global `ValidationPipe` +
+ * `DomainExceptionFilter` — plus the real {@link AuthGuard} over a stub
+ * {@link CallerResolver}. The {@link CommentService} is mocked so the run needs
+ * no Mongo or network. They prove the edge end to end: auth rejects
  * unauthenticated requests, the resolved org scopes the call, validation rejects
- * bad input, canonical shapes go out on success, and the typed taxonomy maps to
- * the documented HTTP codes and envelope (AC-4, AC-5).
+ * bad input, our shared shapes go out on success, and typed errors map to the
+ * documented HTTP codes and envelope.
  */
 describe('Comments (e2e)', () => {
   // Two dev API keys mapping to two tenants, via the stub resolver below.

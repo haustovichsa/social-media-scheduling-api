@@ -1,9 +1,8 @@
 import { EnvCallerResolver } from './env-caller-resolver';
 
 /**
- * Unit tests for the env-backed dev resolver (TASK-10). Config is passed to the
- * constructor rather than mutating `process.env`, so the parsing and lookup are
- * exercised in isolation.
+ * Unit tests for the env-backed dev resolver. Config is passed to the constructor
+ * rather than mutating `process.env`, so parsing and lookup run in isolation.
  */
 describe('EnvCallerResolver', () => {
   it('resolves a known key to its tenant', async () => {

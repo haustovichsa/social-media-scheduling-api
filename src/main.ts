@@ -11,7 +11,7 @@ async function bootstrap(): Promise<void> {
   // Global validation + typed-error filter, shared with the e2e tests.
   configureApp(app);
 
-  // OpenAPI (FR-6): served at /docs, with the JSON at /docs-json.
+  // OpenAPI docs at /docs, JSON at /docs-json.
   const openApi = new DocumentBuilder()
     .setTitle('Multi-platform comment API')
     .setDescription(
@@ -23,8 +23,7 @@ async function bootstrap(): Promise<void> {
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, openApi));
 
-  // PORT is defaulted and coerced by the validated env schema, so read it
-  // straight from there — no duplicate fallback.
+  // PORT is defaulted and coerced by the env schema, so read it from there.
   const config = app.get(ConfigService);
   await app.listen(config.getOrThrow<number>('PORT'));
 }

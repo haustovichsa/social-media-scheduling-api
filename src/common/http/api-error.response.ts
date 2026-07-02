@@ -1,12 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
- * The single, uniform error envelope every failed request returns (AC-5). It is
- * intentionally small and platform-free: a stable machine-readable `code` for
- * clients to branch on, a safe human `message`, plus the HTTP `statusCode` and
- * its reason phrase. Raw platform payloads and error `cause` chains never reach
- * this shape — {@link DomainExceptionFilter} builds it from our typed errors, so
- * a vendor's response body can't leak to the caller (RK-1, RK-6).
+ * The single, uniform error envelope every failed request returns. Small and
+ * platform-free: a stable machine-readable `code` for clients to branch on, a
+ * safe human `message`, plus the HTTP `statusCode` and its reason phrase.
+ * {@link DomainExceptionFilter} builds it from our typed errors, so raw platform
+ * payloads and error `cause` chains can't leak to the caller.
  */
 export class ApiErrorResponse {
   @ApiProperty({ example: 404, description: 'HTTP status code.' })

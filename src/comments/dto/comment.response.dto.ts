@@ -5,9 +5,8 @@ import { Comment } from '../../domain';
 import { AuthorResponseDto } from './author.response.dto';
 
 /**
- * Wire shape of a {@link Comment}. Dates are serialised as ISO-8601 strings so
- * the JSON contract is explicit and stable regardless of how the transport
- * serialises `Date`. Mapping domain → DTO happens here at the API boundary.
+ * Wire shape of a {@link Comment}. Dates go out as ISO-8601 strings so the JSON
+ * contract is explicit and stable. Domain → DTO mapping happens here.
  */
 export class CommentResponseDto {
   @ApiProperty({ description: 'Our internal comment id.' })

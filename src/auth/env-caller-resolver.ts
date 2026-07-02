@@ -8,15 +8,13 @@ const ENV_VAR = 'SOCIAL_API_KEYS';
 
 /**
  * Stub {@link CallerResolver} backed by an env var — the local/dev seam a real
- * authenticator replaces (exactly like `EnvTokenProvider` for tokens). It
- * treats the presented credential as an opaque API key and maps it to a tenant
- * from {@link ENV_VAR}; an unknown key resolves to `null` and the guard turns
- * that into a 401.
+ * authenticator replaces. Treats the credential as an opaque API key and maps it
+ * to a tenant from {@link ENV_VAR}; an unknown key resolves to `null` (a 401).
  *
- * The map is parsed once at construction. A real implementation would instead
- * verify a signed token (so there's nothing to look up) or call an auth service;
- * a plain string-equality key lookup like this leaks timing and is for local use
- * only — hence it stays behind this swappable seam.
+ * The map is parsed once at construction. This plain string-equality lookup
+ * leaks timing and is for local use only, which is why it stays behind a
+ * swappable seam; a real version would verify a signed token or call an auth
+ * service.
  */
 export class EnvCallerResolver implements CallerResolver {
   private readonly orgByKey: ReadonlyMap<string, string>;
@@ -26,9 +24,8 @@ export class EnvCallerResolver implements CallerResolver {
       (rawConfig ?? '')
         .split(',')
         .map((pair): [string, string] => {
-          // Split on the first colon only, so an org id may itself contain
-          // colons. A blank/malformed entry yields empty parts and is dropped
-          // by the filter below.
+          // Split on the first colon only, so an org id may contain colons.
+          // Blank/malformed entries yield empty parts and are dropped below.
           const trimmed = pair.trim();
           const separator = trimmed.indexOf(':');
           return [trimmed.slice(0, separator), trimmed.slice(separator + 1)];

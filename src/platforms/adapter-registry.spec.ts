@@ -13,10 +13,8 @@ import { AdapterNotFoundError } from './platform-errors';
 import { PlatformsModule } from './platforms.module';
 
 /**
- * A minimal stand-in adapter. TASK-04 defines the extension point, so the tests
- * exercise the registry with fakes rather than any real platform — proving the
- * contract holds for *any* implementation, which is exactly the guarantee the
- * registry provides (AC-3).
+ * A minimal stand-in adapter. The tests exercise the registry with fakes rather
+ * than any real platform, proving the contract holds for any implementation.
  */
 function fakeAdapter(platform: Platform): PlatformAdapter {
   return {
@@ -81,8 +79,8 @@ describe('PlatformsModule (DI wiring)', () => {
   it('provides an AdapterRegistry built from PLATFORM_ADAPTERS', async () => {
     const fb = fakeAdapter(Platform.Facebook);
 
-    // Override the empty adapter token with a fake to prove the wiring the real
-    // module uses: adapters bound to PLATFORM_ADAPTERS flow into the registry.
+    // Override the adapter token with a fake to prove the real module's wiring:
+    // adapters bound to PLATFORM_ADAPTERS flow into the registry.
     const moduleRef = await Test.createTestingModule({
       imports: [PlatformsModule],
     })

@@ -15,15 +15,15 @@ export enum NodeEnv {
 }
 
 /**
- * Typed, validated view of the process environment. `ConfigModule` runs
- * {@link validateEnv} at boot, so a missing or malformed variable fails fast
- * with a clear message instead of surfacing later as a runtime error.
+ * Typed, validated view of the environment. `ConfigModule` runs
+ * {@link validateEnv} at boot, so a missing or bad variable fails fast with a
+ * clear message instead of surfacing later at runtime.
  */
 export class EnvironmentVariables {
   @IsEnum(NodeEnv)
   NODE_ENV = NodeEnv.Development;
 
-  // Env values arrive as strings; @Type coerces PORT to a number before validation.
+  // Env values arrive as strings; @Type coerces PORT to a number first.
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -38,7 +38,7 @@ export function validateEnv(
   config: Record<string, unknown>,
 ): EnvironmentVariables {
   // Coercion is declared per-field with @Type (see PORT), so no implicit
-  // conversion option is needed here.
+  // conversion option is needed.
   const validated = plainToInstance(EnvironmentVariables, config);
 
   const errors = validateSync(validated);

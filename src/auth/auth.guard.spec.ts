@@ -5,11 +5,11 @@ import { AuthGuard } from './auth.guard';
 import { Caller, CallerResolver } from './caller-resolver';
 
 /**
- * Unit tests for the authentication boundary (TASK-10). The {@link CallerResolver}
- * is mocked, so these assert only what the guard owns: extracting the bearer
- * credential, pinning the resolved org onto the request, and rejecting anything
- * unauthenticated with a 401. Ownership (the 404 for cross-tenant resources) is
- * enforced downstream by org-scoped queries and tested there.
+ * Unit tests for the auth boundary. The {@link CallerResolver} is mocked, so
+ * these assert only what the guard owns: extracting the bearer credential,
+ * pinning the resolved org onto the request, and rejecting anything
+ * unauthenticated with a 401. Ownership (the cross-tenant 404) is enforced and
+ * tested downstream.
  */
 describe('AuthGuard', () => {
   let resolve: jest.Mock<Promise<Caller | null>, [string]>;

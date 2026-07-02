@@ -33,19 +33,18 @@ import {
 } from './dto';
 
 /**
- * The REST edge for the comment feature (FR-4). It does three small things and
- * nothing else: read the caller's org from the request (resolved by
- * {@link AuthGuard} and injected via {@link CurrentOrgId}), delegate to
- * {@link CommentService}, and map the canonical result up to the wire DTOs. All
- * error translation lives in the global {@link DomainExceptionFilter};
- * controllers never catch or shape errors, so a platform failure and a
- * not-found both flow out as the documented {@link ApiErrorResponse} envelope
- * (AC-5). Only canonical shapes cross this boundary — never a raw platform
+ * The REST edge for the comment feature. It does three things and nothing else:
+ * read the caller's org (resolved by {@link AuthGuard} and injected via
+ * {@link CurrentOrgId}), delegate to {@link CommentService}, and map the result
+ * up to the wire DTOs. Error translation lives in the global
+ * {@link DomainExceptionFilter}; controllers never catch or shape errors, so a
+ * platform failure and a not-found both come out as the {@link ApiErrorResponse}
+ * envelope. Only our shared shapes cross this boundary — never a raw platform
  * payload.
  *
- * `@UseGuards(AuthGuard)` protects both routes (AC-4): an unauthenticated
- * request is rejected with 401 before any handler runs, and the resolved org
- * scopes every downstream query so cross-tenant access surfaces as a 404.
+ * `@UseGuards(AuthGuard)` protects both routes: an unauthenticated request is
+ * rejected with 401 before any handler runs, and the resolved org scopes every
+ * downstream query so cross-tenant access surfaces as a 404.
  */
 @ApiTags('comments')
 @ApiBearerAuth()

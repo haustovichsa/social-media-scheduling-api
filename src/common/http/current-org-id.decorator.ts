@@ -6,9 +6,8 @@ import {
 import { Request } from 'express';
 
 /**
- * Shape the auth layer attaches to the request. Kept here (not on the global
- * Express types) so the contract between the guard and the controllers is
- * explicit and local.
+ * Shape the auth layer attaches to the request. Kept here (not on global Express
+ * types) so the guard-to-controller contract stays explicit and local.
  */
 export interface AuthenticatedRequest extends Request {
   /** The caller's resolved tenant. Set by {@link AuthGuard}. */
@@ -16,13 +15,13 @@ export interface AuthenticatedRequest extends Request {
 }
 
 /**
- * Injects the caller's org id (A-6). {@link AuthGuard} authenticates the request
- * and sets `request.orgId`; every ownership-scoped query then reads it through
- * this decorator instead of parsing headers in each controller.
+ * Injects the caller's org id. {@link AuthGuard} authenticates the request and
+ * sets `request.orgId`; ownership-scoped queries read it through this decorator
+ * instead of parsing headers in each controller.
  *
- * If it is missing, a route was exposed without the guard in front of it — a
- * wiring bug, not a client error — so we fail loudly with a 500 rather than
- * silently querying with `undefined` and leaking across tenants.
+ * A missing value means the route was exposed without the guard — a wiring bug,
+ * not a client error — so we fail loudly with a 500 rather than silently querying
+ * with `undefined` and leaking across tenants.
  */
 export const CurrentOrgId = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string => {

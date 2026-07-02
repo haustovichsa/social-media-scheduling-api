@@ -3,13 +3,11 @@ import { Page, PageCursor } from '../domain';
 import { FetchedComment, FetchedReply, ReplyInput } from './platform-comment';
 
 /**
- * Identifies the connected account an adapter call acts as. The service layer
- * resolves it from the `Post`/`Comment` being operated on and threads it down so
- * the adapter can obtain that account's platform token via the `TokenProvider`
- * (TASK-06). Kept as an object rather than a bare id so the call site reads
- * unambiguously ("as this account, fetch that post"), so `externalPostId` and
- * the account id can't be transposed (they are both strings), and so future
- * per-call context (trace id, org) has a home without reshaping every signature.
+ * Which connected account an adapter call acts as. The service resolves it from
+ * the `Post`/`Comment` being operated on so the adapter can get that account's
+ * token via the `TokenProvider`. An object, not a bare id, so the call site reads
+ * clearly, the account id can't be swapped with `externalPostId` (both strings),
+ * and future per-call context (trace id, org) has a home.
  */
 export interface AdapterContext {
   /** Our `PlatformAccount` id — the key the `TokenProvider` resolves to a token. */
@@ -17,33 +15,32 @@ export interface AdapterContext {
 }
 
 /**
- * What a platform can and cannot do, so the core can adapt without hard-coding
- * per-vendor rules. Read by the mapping/read flow (each platform nests replies
- * to a different depth) and by the webhook seam (TASK-14).
+ * What a platform can and cannot do, so the core adapts without hard-coding
+ * per-vendor rules. Read by the read flow (platforms nest replies to different
+ * depths) and by the webhook seam.
  */
 export interface PlatformCapabilities {
   /**
    * Deepest reply nesting the platform allows. The adapter enforces this on
-   * ingest (A-5): comments below the limit are flattened onto the deepest
-   * allowed ancestor rather than dropped.
+   * ingest: comments below the limit are flattened onto the deepest allowed
+   * ancestor rather than dropped.
    */
   readonly maxThreadDepth: number;
-  /** Whether the platform can push new comments to us via webhook (TASK-14). */
+  /** Whether the platform can push new comments to us via webhook. */
   readonly supportsWebhooks: boolean;
 }
 
 /**
- * The one contract every platform implements — the extension point that makes
- * "support many platforms, add more later" a matter of writing a class, not
- * touching the core (NFR-1, AC-3). Concrete adapters own everything
- * platform-specific: auth (resolved per-account via the TokenProvider, TASK-06),
- * request shape, paging tokens, and mapping payloads to the external-keyed
+ * The one contract every platform implements: you add a platform by writing one
+ * class, without touching the core. Concrete adapters own everything
+ * platform-specific: auth (per-account via the TokenProvider), request shape,
+ * paging tokens, and mapping payloads to the external-keyed
  * {@link FetchedComment}/{@link FetchedReply} structs.
  *
- * Two rules make the contract safe to depend on and are exercised by the shared
- * contract test (TASK-12):
- *  1. Every failure is thrown as a {@link PlatformError} subclass — no vendor
- *     error shape ever escapes an adapter (RK-1, AC-5).
+ * Two rules make the contract safe to depend on, both checked by the shared
+ * contract test:
+ *  1. Every failure is thrown as a {@link PlatformError} subclass — adapters
+ *     never leak raw platform errors.
  *  2. `nextCursor` is opaque and round-trips: passing a page's `nextCursor`
  *     straight back returns the following page; `null` means end of list.
  */
@@ -53,10 +50,9 @@ export interface PlatformAdapter {
   readonly capabilities: PlatformCapabilities;
 
   /**
-   * Fetch one page of a published post's comments, acting as `ctx`'s account,
-   * with paging semantics defined by the adapter. `cursor` is `undefined` for
-   * the first page and otherwise the `nextCursor` from the previous page. Throws
-   * a {@link PlatformError} on any platform failure.
+   * Fetch one page of a published post's comments as `ctx`'s account. `cursor` is
+   * `undefined` for the first page, otherwise the previous page's `nextCursor`.
+   * Throws a {@link PlatformError} on any platform failure.
    */
   getComments(
     ctx: AdapterContext,
@@ -66,9 +62,8 @@ export interface PlatformAdapter {
 
   /**
    * Post a reply under `externalCommentId` as `ctx`'s account and return the
-   * comment the platform created for it. Throws a {@link PlatformError} on any
-   * platform failure; the reply service (TASK-08) is responsible for at-most-once
-   * delivery via the outbox, so this method just performs the send.
+   * comment the platform created. Throws a {@link PlatformError} on any failure.
+   * This just performs the send; the reply service handles at-most-once delivery.
    */
   replyToComment(
     ctx: AdapterContext,
@@ -78,9 +73,9 @@ export interface PlatformAdapter {
 }
 
 /**
- * DI token resolving to every registered {@link PlatformAdapter}. The
- * `PlatformsModule` binds it to the adapter instances; {@link AdapterRegistry}
- * injects the array and indexes it by platform. Kept as a token (not a direct
- * array) so the set of adapters is assembled by Nest's container.
+ * DI token for every registered {@link PlatformAdapter}. `PlatformsModule` binds
+ * it to the adapter instances; {@link AdapterRegistry} injects the array and
+ * indexes it by platform. A token, not a direct array, so Nest's container
+ * assembles the set.
  */
 export const PLATFORM_ADAPTERS = Symbol('PLATFORM_ADAPTERS');

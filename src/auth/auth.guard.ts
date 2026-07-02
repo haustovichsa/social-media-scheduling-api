@@ -10,20 +10,15 @@ import { AuthenticatedRequest } from '../common/http/current-org-id.decorator';
 import { CALLER_RESOLVER, CallerResolver } from './caller-resolver';
 
 /**
- * Authenticates a request and pins the caller's tenant onto it (A-6, NFR-4). It
- * pulls the bearer credential from the `Authorization` header, resolves it via
- * the {@link CallerResolver}, and sets `request.orgId` — the value
- * {@link CurrentOrgId} hands the services, which then scope every query to that
- * org. Applied to both comment routes with `@UseGuards`.
+ * Authenticates a request and pins the caller's tenant onto it. Pulls the bearer
+ * credential from the `Authorization` header, resolves it via the
+ * {@link CallerResolver}, and sets `request.orgId` — the value {@link CurrentOrgId}
+ * hands the services, which scope every query to that org.
  *
- * Split of responsibilities (and status codes):
- *  - *Authentication* is here: no/'bad' credential → 401. This guard only proves
- *    *who* the caller is; it does not load posts or comments.
- *  - *Ownership* is enforced downstream by the org-scoped repository queries: a
- *    resource in another tenant is indistinguishable from a missing one and maps
- *    to a single 404, so a caller can't probe for resources it doesn't own. We
- *    deliberately return 404 (not 403) for cross-tenant access to avoid leaking
- *    existence — the guard here never needs the resource to make that call.
+ * This guard only proves who the caller is (no/bad credential → 401); it doesn't
+ * load posts or comments. Ownership is enforced downstream by org-scoped queries:
+ * another tenant's resource looks the same as not found and maps to a 404 (not
+ * 403), so a caller can't probe for existence of resources it doesn't own.
  */
 @Injectable()
 export class AuthGuard implements CanActivate {

@@ -2,17 +2,16 @@ import { Platform } from '../common/enums/platform.enum';
 import { Author } from './author';
 
 /**
- * Canonical, platform-free view of a comment (FR-1). This is the single shared
- * shape services and controllers speak, no matter which platform the comment
- * came from — the whole point of the adapter layer is that platform-native
- * fields never reach this type (NFR-1, the isolation boundary).
+ * Canonical, platform-free view of a comment — the single shared shape services
+ * and controllers speak, whatever platform it came from. The adapter layer keeps
+ * platform-native fields from ever reaching this type.
  *
- * It mirrors the {@link Comment} persistence model but is a plain domain object:
- * ids are strings (not Mongo `ObjectId`s), and there are no Mongoose/document
- * concerns. The repository maps `CommentDocument` → `Comment` on the way out.
+ * Mirrors the {@link Comment} persistence model but is a plain domain object: ids
+ * are strings, not Mongo `ObjectId`s, with no Mongoose concerns. The repository
+ * maps `CommentDocument` → `Comment` on the way out.
  *
- * Threading (A-5) is expressed the same way as in storage: a top-level comment
- * has `parentCommentId === null`; a reply points at its parent's id.
+ * Threading matches storage: a top-level comment has `parentCommentId === null`;
+ * a reply points at its parent's id.
  */
 export interface Comment {
   /** Our own id for this comment (the persistence document id, as a string). */

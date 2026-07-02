@@ -9,10 +9,9 @@ import {
 import { Response } from 'express';
 import { STATUS_CODES } from 'node:http';
 
-// Import the error types from their concrete modules (not the feature barrels)
-// so this filter — pulled in transitively by every controller via the
-// common/http barrel — doesn't create an import cycle back through the feature
-// modules.
+// Import error types from their concrete modules, not the feature barrels: this
+// filter is pulled in by every controller via the common/http barrel, so going
+// through the barrels would create an import cycle.
 import {
   CommentNotFoundError,
   PostNotFoundError,
@@ -36,8 +35,8 @@ interface MappedError {
 
 /**
  * The response for a fault we won't describe: any server-side error (5xx),
- * whether it arrived raw or as an `HttpException`. Internals never reach the
- * caller (RK-6) — the real error is logged for operators instead.
+ * whether raw or an `HttpException`. Internals never reach the caller — the real
+ * error is logged for operators instead.
  */
 const OPAQUE_500: MappedError = {
   status: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -46,10 +45,10 @@ const OPAQUE_500: MappedError = {
 };
 
 /**
- * Status + code for the simple domain errors, keyed by their constructor. These
- * all just carry the error's own `message`, so the table is the whole mapping —
- * no per-type branch needed. `AdapterNotFoundError` and `PlatformError` are
- * handled separately (they log / vary by code), so they're deliberately absent.
+ * Status + code for the simple domain errors, keyed by constructor. Each just
+ * carries its own `message`, so this table is the whole mapping — no per-type
+ * branch needed. `AdapterNotFoundError` and `PlatformError` are handled
+ * separately (they log / vary by code), so they're absent here.
  */
 type ErrorCtor = new (...args: never[]) => Error;
 
@@ -70,17 +69,17 @@ const HTTP_ERROR_CODE: Readonly<Record<number, string>> = {
 };
 
 /**
- * Translates the whole typed error taxonomy into documented HTTP responses at
- * the single API edge (AC-5). The services and adapters stay transport-agnostic
- * and throw domain/`PlatformError`s; this filter is the one place that decides
- * status codes and shapes the {@link ApiErrorResponse} envelope — so no raw
- * platform response or error `cause` ever reaches the caller (RK-1, RK-6).
+ * Translates the typed error taxonomy into documented HTTP responses at the
+ * single API edge. Services and adapters stay transport-agnostic and throw
+ * domain/`PlatformError`s; this filter is the one place that decides status codes
+ * and shapes the {@link ApiErrorResponse} envelope, so no raw platform response or
+ * error `cause` reaches the caller.
  *
- * It is a catch-all (`@Catch()`) with four branches in {@link resolve}:
+ * A catch-all (`@Catch()`) with four branches in {@link resolve}:
  *  1. `PlatformError`s → mapped by their stable code;
  *  2. simple domain errors → the {@link DOMAIN_ERROR_MAP} table;
- *  3. framework `HttpException`s (e.g. the `ValidationPipe`'s 400) → preserved
- *     status, re-wrapped in the same envelope so every error looks alike;
+ *  3. framework `HttpException`s (e.g. the `ValidationPipe`'s 400) → same status,
+ *     re-wrapped in the same envelope so every error looks alike;
  *  4. anything else (and our own misconfigurations) → an opaque 500.
  */
 @Catch()
@@ -99,7 +98,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
 
     const body: ApiErrorResponse = {
       statusCode: mapped.status,
-      // Reuse Node's built-in reason phrases rather than maintaining our own.
+      // Reuse Node's built-in reason phrases.
       error: STATUS_CODES[mapped.status] ?? 'Error',
       code: mapped.code,
       message: mapped.message,
@@ -121,8 +120,8 @@ export class DomainExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof AdapterNotFoundError) {
-      // A platform value with no registered adapter is our misconfiguration, not
-      // a caller or platform fault. Log it and return an opaque 500.
+      // A platform with no registered adapter is our misconfiguration, not a
+      // caller or platform fault. Log it and return an opaque 500.
       this.logger.error(exception.message);
       return OPAQUE_500;
     }
@@ -131,20 +130,20 @@ export class DomainExceptionFilter implements ExceptionFilter {
       return fromHttpException(exception);
     }
 
-    // Unmapped: never surface internals. Log the real error for operators; the
-    // caller gets a generic 500.
+    // Unmapped: never surface internals. Log the real error; the caller gets a
+    // generic 500.
     this.logger.error('Unhandled exception', asError(exception).stack);
     return OPAQUE_500;
   }
 
   /** Map the shared {@link PlatformError} taxonomy by its stable code. */
   private mapPlatformError(error: PlatformError): MappedError {
-    // Upstream failures are worth an operator log (with cause), but the cause is
-    // never serialised into the response.
+    // Upstream failures are worth logging (with cause), but the cause is never
+    // serialised into the response.
     this.logger.warn(`Platform error (${error.code}): ${error.message}`);
 
-    // Only the status (and the rate-limit header) varies; code and message are
-    // always the error's own.
+    // Only the status (and rate-limit header) varies; code and message are always
+    // the error's own.
     const base = { code: error.code, message: error.message };
     switch (error.code) {
       case PlatformErrorCode.RateLimited: {
@@ -162,8 +161,8 @@ export class DomainExceptionFilter implements ExceptionFilter {
       case PlatformErrorCode.ResourceNotFound:
         return { ...base, status: HttpStatus.NOT_FOUND };
       default:
-        // TokenExpired / Unavailable / Unknown: the platform (our upstream)
-        // failed or is unreachable → 502 Bad Gateway.
+        // TokenExpired / Unavailable / Unknown: the upstream platform failed or
+        // is unreachable → 502 Bad Gateway.
         return { ...base, status: HttpStatus.BAD_GATEWAY };
     }
   }
@@ -173,14 +172,13 @@ export class DomainExceptionFilter implements ExceptionFilter {
 function fromHttpException(exception: HttpException): MappedError {
   const status = exception.getStatus();
 
-  // A 5xx that happens to arrive as an HttpException is still a server-side
-  // fault: stay opaque, exactly like a raw throw, so internal messages (e.g. a
-  // missing-guard misconfiguration) can't leak.
+  // A 5xx arriving as an HttpException is still a server-side fault: stay opaque,
+  // like a raw throw, so internal messages (e.g. a missing-guard bug) can't leak.
   if (status >= 500) {
     return { ...OPAQUE_500, status };
   }
 
-  // `ValidationPipe` and friends put the details under `message`; a raw string
+  // `ValidationPipe` and friends put details under `message`; a raw string
   // response is the message itself.
   const payload = exception.getResponse();
   let message = exception.message;

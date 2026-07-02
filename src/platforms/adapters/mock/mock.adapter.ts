@@ -27,13 +27,13 @@ interface MockComment extends FetchedComment {
   readonly externalPostId: string;
 }
 
-/** Comments per page — deliberately small so paging is exercised in tests. */
+/** Small on purpose so tests hit paging. */
 const MOCK_PAGE_SIZE = 2;
 
-/** Anchor for deterministic seed timestamps: one comment per minute from here. */
+/** Start point for seed timestamps: one comment per minute from here. */
 const SEED_EPOCH = Date.UTC(2026, 0, 1, 0, 0, 0);
 
-/** The account this adapter posts replies as (the "us" author). */
+/** The account this adapter posts replies as. */
 const MOCK_SELF: FetchedAuthor = {
   externalAuthorId: 'mock-self',
   displayName: 'Mock Account',
@@ -58,15 +58,13 @@ function seedComment(
 }
 
 /**
- * Deterministic, in-memory {@link PlatformAdapter} for tests and local demos. It
- * needs no network, tokens, or config, so it is the default way to exercise the
- * whole read/reply flow end-to-end. Behaviour is fully reproducible: a fresh
- * instance always starts from the same seed, so each test gets identical data.
+ * In-memory {@link PlatformAdapter} for tests and local demos. No network,
+ * tokens, or config, so it's the default way to run the whole read/reply flow.
+ * A fresh instance always starts from the same seed, so tests are repeatable.
  *
- * The seed for `post-1` covers the cases the mapping has to get right: multiple
- * top-level comments, a nested reply, and a reply-to-a-reply (depth 2), so
- * paging and threading are both non-trivial. Posting a reply mutates the
- * in-memory store, so a demo can read its own reply back on the next page.
+ * The `post-1` seed covers the tricky cases: several top-level comments, a
+ * nested reply, and a reply-to-a-reply (depth 2). Posting a reply mutates the
+ * store, so a demo can read its own reply back on the next page.
  */
 @Injectable()
 export class MockAdapter implements PlatformAdapter {
@@ -76,7 +74,7 @@ export class MockAdapter implements PlatformAdapter {
     supportsWebhooks: false,
   };
 
-  /** Ordered oldest-first, matching how a platform streams a comment history. */
+  /** Oldest-first, like a platform streams comment history. */
   private readonly comments: MockComment[];
   private replyCounter = 0;
 
@@ -106,11 +104,10 @@ export class MockAdapter implements PlatformAdapter {
     ];
   }
 
-  // The store is in-memory, so there is no real async work; the methods return
-  // resolved/rejected promises to honour the async contract without a spurious
-  // `async` (a failure surfaces as a rejection, never a synchronous throw).
-  // `_ctx` is ignored: the mock needs no token, which is exactly why it is the
-  // default way to exercise the read/reply flow without credentials or network.
+  // The store is in-memory, so there's no real async work. Methods return
+  // resolved/rejected promises to honor the async contract (a failure is a
+  // rejection, never a synchronous throw). `_ctx` is ignored: the mock needs
+  // no token.
   getComments(
     _ctx: AdapterContext,
     externalPostId: string,
@@ -150,9 +147,9 @@ export class MockAdapter implements PlatformAdapter {
       );
     }
 
-    // Mirror platform flattening: a reply sits one level below its parent, so if
-    // that would exceed the cap it attaches to the deepest still-allowed
-    // ancestor instead — the same rule the read path applies via enforceThreadDepth.
+    // Mirror platform flattening: a reply sits one level below its parent. If
+    // that would exceed the cap, attach it to the deepest allowed ancestor
+    // instead — the same rule the read path applies via enforceThreadDepth.
     const parentId = ancestorAtDepth(
       parent,
       this.capabilities.maxThreadDepth - 1,
@@ -182,7 +179,7 @@ export class MockAdapter implements PlatformAdapter {
     return this.comments.find((c) => c.externalCommentId === externalCommentId);
   }
 
-  /** Resolve a comment's parent in the store — the seam the depth walk needs. */
+  /** Find a comment's parent in the store, used by the depth walk. */
   private parentOf(comment: MockComment): MockComment | undefined {
     return comment.externalParentCommentId === null
       ? undefined
@@ -190,7 +187,7 @@ export class MockAdapter implements PlatformAdapter {
   }
 }
 
-/** Strip the storage-only `externalPostId` to yield the wire-facing shape. */
+/** Drop the storage-only `externalPostId` to get the wire shape. */
 function toFetchedComment(comment: MockComment): FetchedComment {
   return {
     externalCommentId: comment.externalCommentId,

@@ -8,7 +8,7 @@ export interface FacebookCursor {
   readonly after: string;
 }
 
-/** Author shown when Facebook withholds `from` (the commenter's privacy setting). */
+/** Author shown when Facebook withholds `from` (commenter's privacy setting). */
 const UNKNOWN_AUTHOR: FetchedAuthor = {
   externalAuthorId: 'unknown',
   displayName: 'Unknown',
@@ -17,8 +17,8 @@ const UNKNOWN_AUTHOR: FetchedAuthor = {
 /**
  * Map one raw Graph comment to the canonical {@link FetchedComment}. This is the
  * whole point of the adapter: Graph's `from`/`parent`/`created_time` shape stops
- * here and only platform-free fields continue upward (NFR-1). A missing `from`
- * (withheld by privacy) degrades to a placeholder author rather than throwing.
+ * here and only platform-free fields continue upward. A missing `from` (withheld
+ * by privacy) degrades to a placeholder author rather than throwing.
  */
 export function mapComment(raw: FacebookComment): FetchedComment {
   return {
@@ -44,9 +44,9 @@ function mapAuthor(from: FacebookComment['from']): FetchedAuthor {
 
 /**
  * Turn Graph paging into our opaque `nextCursor`. Graph signals end-of-list by
- * *omitting* `paging.next`, so we only emit a cursor when both `next` and an
+ * omitting `paging.next`, so we only emit a cursor when both `next` and an
  * `after` token are present; otherwise `null`. The `after` token is wrapped so
- * the Graph-specific shape never leaks past the adapter.
+ * the Graph shape never leaks past the adapter.
  */
 export function mapNextCursor(paging?: FacebookPaging): PageCursor | null {
   const after = paging?.cursors?.after;

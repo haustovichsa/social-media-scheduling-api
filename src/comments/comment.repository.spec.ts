@@ -15,10 +15,10 @@ import { FetchedComment, FetchedReply } from '../platforms';
 import { CommentRepository, ReplyTarget } from './comment.repository';
 
 /**
- * Integration tests for the storage mechanics the service can't exercise with a
- * mock: identity-keyed upserts, external→internal parent resolution, and keyset
- * pagination. Runs against a real (in-memory) Mongo so indexes and the total sort
- * order are actually enforced, not just declared.
+ * Integration tests for storage the service can't exercise with a mock:
+ * identity-keyed upserts, external→internal parent resolution, and keyset paging.
+ * Runs against a real in-memory Mongo so indexes and the sort order are actually
+ * enforced, not just declared.
  */
 describe('CommentRepository (in-memory Mongo)', () => {
   let mongo: MongoMemoryServer;
@@ -243,8 +243,8 @@ describe('CommentRepository (in-memory Mongo)', () => {
   });
 
   describe('reply flow', () => {
-    // Seed one stored comment on a published post and hand back the reply target
-    // the reply flow resolves — the parent everything below threads under.
+    // Seed one stored comment on a published post and return the reply target —
+    // the parent everything below threads under.
     const seedTarget = async (): Promise<ReplyTarget> => {
       const post = await createPost();
       await repository.upsertFetched(post, [fetched('parent', 0)], new Date());

@@ -95,7 +95,7 @@ describe('FacebookAdapter', () => {
     expect(page.items[0].platformCreatedAt.toISOString()).toBe(
       '2026-01-02T03:04:05.000Z',
     );
-    // A reply keeps its parent; a withheld `from` degrades to a placeholder.
+    // A reply keeps its parent; a missing `from` degrades to a placeholder.
     expect(page.items[1].externalParentCommentId).toBe('c1');
     expect(page.items[1].author.displayName).toBe('Unknown');
   });

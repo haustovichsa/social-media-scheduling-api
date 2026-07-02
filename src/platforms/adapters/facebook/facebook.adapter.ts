@@ -23,21 +23,19 @@ import {
 import { FacebookCursor, mapComment, mapNextCursor } from './facebook.mapper';
 
 /**
- * Facebook Graph API adapter (partial, realistic sketch). It owns everything
+ * Facebook Graph API adapter (partial sketch). It owns everything
  * Facebook-specific and speaks the shared {@link PlatformAdapter} contract, so
- * the rest of the system never knows Graph exists. Its two jobs are
- * orchestration and normalization: drive the {@link FacebookGraphClient}, then
- * hand the raw payloads to the mapper. Auth, transport, and error translation
- * live in the client behind the DI token.
+ * the rest of the system never knows Graph exists. Two jobs: drive the
+ * {@link FacebookGraphClient}, then hand raw payloads to the mapper. Auth,
+ * transport, and error translation live in the client behind the DI token.
  *
  * Threading: Facebook collapses reply-to-a-reply onto the top-level comment, so
- * `maxThreadDepth` is 1 and every fetched page is run through
- * {@link enforceThreadDepth} to guarantee that shape even if the stream ever
- * returns a deeper chain.
+ * `maxThreadDepth` is 1 and every page runs through {@link enforceThreadDepth}
+ * to guarantee that shape even if the stream returns a deeper chain.
  *
- * Auth: token resolution and the failure-to-{@link TokenExpiredError} mapping
- * live in the shared {@link withPlatformToken} helper, which the adapter
- * delegates to per call — never reading a token directly.
+ * Auth: token lookup and the failure-to-{@link TokenExpiredError} mapping live
+ * in {@link withPlatformToken}, which the adapter calls per request — it never
+ * reads a token directly.
  */
 @Injectable()
 export class FacebookAdapter implements PlatformAdapter {
@@ -90,9 +88,9 @@ export class FacebookAdapter implements PlatformAdapter {
       (token) => this.client.createReply(externalCommentId, token, body.text),
     );
 
-    // The created comment's `parent` may be elided by Graph on the write
-    // response, so pin the parent to the comment we replied to — which is the
-    // reply's parent by definition (and satisfies FetchedReply's non-null rule).
+    // Graph may drop `parent` on the write response, so pin the parent to the
+    // comment we replied to — which is the reply's parent by definition (and
+    // satisfies FetchedReply's non-null rule).
     return {
       ...mapComment(created),
       externalParentCommentId: externalCommentId,

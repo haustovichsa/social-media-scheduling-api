@@ -15,10 +15,10 @@ import {
 } from './list-comments.query.dto';
 
 /**
- * Mirrors what the global `ValidationPipe` does: transform the raw payload into
- * the DTO class (coercing query strings) then validate, and collect the property
- * names that failed. `enableImplicitConversion` is off — the DTOs declare their
- * own `@Type` where coercion is intended, matching the pipe config in main.ts.
+ * Mirrors the global `ValidationPipe`: transform the raw payload into the DTO
+ * class (coercing query strings), validate, and collect the failing property
+ * names. `enableImplicitConversion` is off — the DTOs declare their own `@Type`
+ * where coercion is intended, matching main.ts.
  */
 function validateDto<T extends object>(
   cls: new () => T,

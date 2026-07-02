@@ -8,12 +8,11 @@ import { CommentService } from './comment.service';
 import { ListCommentsQueryDto } from './dto';
 
 /**
- * Unit tests for the controller's mapping and delegation (TASK-09). The service
- * is mocked and these call the handlers directly, so they assert only what the
- * edge owns: it passes the resolved org and route/query params straight through,
- * and maps the canonical result up to the wire DTOs. Error translation is the
- * filter's job and the {@link AuthGuard} its own — both tested separately — so
- * the guard is stubbed out here.
+ * Unit tests for the controller's mapping and delegation. The service is mocked
+ * and these call the handlers directly, so they assert only what the edge owns:
+ * it passes the resolved org and route/query params straight through, and maps
+ * the result up to the wire DTOs. Error translation and the {@link AuthGuard} are
+ * tested separately, so the guard is stubbed out here.
  */
 describe('CommentController', () => {
   const ORG_ID = 'org-1';

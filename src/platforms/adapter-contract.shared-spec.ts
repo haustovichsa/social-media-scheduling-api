@@ -6,10 +6,9 @@ import { depthOf } from './thread-depth';
 
 /**
  * The fixtures a platform must supply to run the shared contract. Everything the
- * suite needs to drive a real read/reply cycle, kept platform-agnostic: the
- * caller names a post that has comments and a comment that can be replied to,
- * and the suite asserts the *behaviour* around them — never the specific ids or
- * text, which differ per platform.
+ * suite needs to drive a read/reply cycle, kept platform-agnostic: the caller
+ * names a post with comments and a comment that can be replied to, and the suite
+ * asserts the behaviour around them — never the specific ids or text.
  */
 export interface AdapterContractFixtures {
   /** Shown in the test name, e.g. the platform's own label. */
@@ -30,17 +29,16 @@ export interface AdapterContractFixtures {
 const MAX_PAGES = 100;
 
 /**
- * The reusable adapter contract (TASK-12, RK-7). Every platform adapter is run
- * through this identical suite, so "add a platform = write an adapter" (AC-3)
- * stays honest: a new adapter that drifts from the shared behaviour fails here
- * before it can mislead the core. It encodes exactly the two guarantees the
- * {@link PlatformAdapter} interface documents — typed errors only, and an opaque
- * cursor that round-trips to `null` — plus the shared-shape and thread-depth
- * rules the read path relies on.
+ * The reusable adapter contract. Every platform adapter runs through this same
+ * suite, so "add a platform = write an adapter" stays honest: a new adapter that
+ * drifts from the shared behaviour fails here before it can mislead the core. It
+ * checks the two guarantees the {@link PlatformAdapter} interface documents —
+ * typed errors only, and an opaque cursor that round-trips to `null` — plus the
+ * shared-shape and thread-depth rules the read path relies on.
  *
- * Call it from a platform's own `*.spec.ts` with that platform's fixtures; the
- * file itself is not collected as a test (no `.spec.ts` suffix) and is excluded
- * from the build, so it ships nowhere and runs only when a real adapter invokes it.
+ * Call it from a platform's own `*.spec.ts` with that platform's fixtures. This
+ * file has no `.spec.ts` suffix and is excluded from the build, so it ships
+ * nowhere and runs only when a real adapter invokes it.
  */
 export function runAdapterContractTests(
   fixtures: AdapterContractFixtures,
@@ -116,7 +114,7 @@ export function runAdapterContractTests(
       const { maxThreadDepth } = adapter.capabilities;
       const pages = await eachPage();
 
-      // Depth is enforced per page against ancestors present in that page (A-5),
+      // Depth is enforced per page against ancestors present in that page,
       // which is exactly how the read path measures it — so we assert the same.
       for (const page of pages) {
         const byId = new Map(page.items.map((c) => [c.externalCommentId, c]));
@@ -159,7 +157,7 @@ export function runAdapterContractTests(
         );
 
       // The interface's first rule: every failure is a PlatformError subclass,
-      // so no vendor error shape can escape the adapter (RK-1, AC-5).
+      // so adapters never leak raw platform errors.
       expect(error).toBeInstanceOf(PlatformError);
       expect(error).toBeInstanceOf(ResourceNotFoundError);
     });

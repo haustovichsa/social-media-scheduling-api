@@ -8,15 +8,14 @@ import {
 } from './platform-adapter.interface';
 
 /**
- * The single lookup services use to reach the right {@link PlatformAdapter}
- * (§3.2). Everything upstream — the read and reply services — depends only on
- * this registry and the shared interface, never on a concrete adapter, so
- * adding a platform changes nothing here or above it (AC-3).
+ * The single lookup services use to reach the right {@link PlatformAdapter}. The
+ * read and reply services depend only on this registry and the shared interface,
+ * never on a concrete adapter, so adding a platform changes nothing here or above.
  *
- * The registry is populated by DI: it injects every adapter bound to
- * {@link PLATFORM_ADAPTERS} and indexes them by their own `platform`. Indexing
- * happens once at construction, so a misconfiguration (two adapters claiming the
- * same platform) fails fast at startup rather than silently shadowing one.
+ * Populated by DI: it injects every adapter bound to {@link PLATFORM_ADAPTERS}
+ * and indexes them by `platform`. Indexing happens once at construction, so two
+ * adapters claiming the same platform fails fast at startup instead of silently
+ * shadowing one.
  */
 @Injectable()
 export class AdapterRegistry {
@@ -36,9 +35,8 @@ export class AdapterRegistry {
   }
 
   /**
-   * Resolve the adapter for a platform, or throw {@link AdapterNotFoundError}
-   * if none is registered — an unknown platform is a typed, loud failure, never
-   * a silent `undefined`.
+   * Resolve the adapter for a platform, or throw {@link AdapterNotFoundError} if
+   * none is registered — a loud failure, never a silent `undefined`.
    */
   get(platform: Platform): PlatformAdapter {
     const adapter = this.byPlatform.get(platform);

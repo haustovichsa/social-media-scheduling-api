@@ -1,11 +1,10 @@
 import { Platform } from '../common/enums/platform.enum';
 
 /**
- * Stable, machine-readable codes for the failures an adapter can surface. These
- * are part of the adapter contract: the HTTP error filter switches on the *code*,
- * never on a platform's raw response, so every platform's problems map to the
- * same documented API errors (AC-5). Add a platform without touching this — the
- * codes describe categories, not vendors.
+ * Stable codes for the failures an adapter can surface. Part of the adapter
+ * contract: the HTTP error filter switches on the code, never on a platform's
+ * raw response, so every platform maps to the same API errors. Codes describe
+ * categories, not vendors, so adding a platform doesn't touch this.
  */
 export enum PlatformErrorCode {
   /** The platform throttled us (HTTP 429 or an equivalent). Retryable. */
@@ -21,14 +20,14 @@ export enum PlatformErrorCode {
 }
 
 /**
- * Base class for every error an adapter is allowed to throw. Adapters must
- * translate platform-native failures into one of these subclasses so the core
- * never sees a vendor error shape (RK-1, NFR-1); anything else escaping an
- * adapter is a bug. Carries a stable {@link PlatformErrorCode}, the offending
- * `platform`, and a `retryable` hint the rate-limit/retry seam would read (§8).
+ * Base class for every error an adapter may throw. Adapters must translate
+ * platform-native failures into one of these subclasses so the core never sees a
+ * raw platform error; anything else escaping an adapter is a bug. Carries a
+ * {@link PlatformErrorCode}, the offending `platform`, and a `retryable` hint the
+ * retry seam would read.
  *
- * The original error is kept on `cause` for logging only — it must never be
- * serialised into an API response (RK-6).
+ * The original error is kept on `cause` for logging only — never serialise it
+ * into an API response.
  */
 export abstract class PlatformError extends Error {
   abstract readonly code: PlatformErrorCode;
@@ -45,7 +44,7 @@ export abstract class PlatformError extends Error {
   }
 }
 
-/** The platform throttled the request (RK-2). */
+/** The platform throttled the request. */
 export class RateLimitError extends PlatformError {
   readonly code = PlatformErrorCode.RateLimited;
   readonly retryable = true;
@@ -60,7 +59,7 @@ export class RateLimitError extends PlatformError {
   }
 }
 
-/** The account's platform token expired or was revoked (RK-2). */
+/** The account's platform token expired or was revoked. */
 export class TokenExpiredError extends PlatformError {
   readonly code = PlatformErrorCode.TokenExpired;
   readonly retryable = false;
@@ -121,11 +120,10 @@ export class UnknownPlatformError extends PlatformError {
 }
 
 /**
- * No adapter is registered for the requested {@link Platform}. This is a
- * configuration error on *our* side (a platform value with no adapter provider),
- * not a platform failure — hence it is not a {@link PlatformError}. The registry
- * throws it so an unknown platform fails loudly and typed rather than returning
- * `undefined` and blowing up later with a null-deref.
+ * No adapter is registered for the requested {@link Platform}. This is a config
+ * error on our side, not a platform failure — hence not a {@link PlatformError}.
+ * The registry throws it so an unknown platform fails loudly instead of returning
+ * `undefined` and null-deref'ing later.
  */
 export class AdapterNotFoundError extends Error {
   constructor(readonly platform: Platform) {
