@@ -4,6 +4,7 @@ import { Platform } from '../../../common/enums/platform.enum';
 import { Page, PageCursor } from '../../../domain';
 import { decodeCursor, encodeCursor } from '../../cursor';
 import {
+  AdapterContext,
   PlatformAdapter,
   PlatformCapabilities,
 } from '../../platform-adapter.interface';
@@ -108,7 +109,10 @@ export class MockAdapter implements PlatformAdapter {
   // The store is in-memory, so there is no real async work; the methods return
   // resolved/rejected promises to honour the async contract without a spurious
   // `async` (a failure surfaces as a rejection, never a synchronous throw).
+  // `_ctx` is ignored: the mock needs no token, which is exactly why it is the
+  // default way to exercise the read/reply flow without credentials or network.
   getComments(
+    _ctx: AdapterContext,
     externalPostId: string,
     cursor?: PageCursor,
   ): Promise<Page<FetchedComment>> {
@@ -135,6 +139,7 @@ export class MockAdapter implements PlatformAdapter {
   }
 
   replyToComment(
+    _ctx: AdapterContext,
     externalCommentId: string,
     body: ReplyInput,
   ): Promise<FetchedReply> {

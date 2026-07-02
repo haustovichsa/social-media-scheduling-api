@@ -1,7 +1,11 @@
 import { PageCursor } from '../../../domain';
+import { AdapterContext } from '../../platform-adapter.interface';
 import { ResourceNotFoundError } from '../../platform-errors';
 import { FetchedComment } from '../../platform-comment';
 import { MockAdapter } from './mock.adapter';
+
+/** The mock ignores the account context, but the contract still requires one. */
+const CTX: AdapterContext = { platformAccountId: 'acc-1' };
 
 /**
  * Exercises the MockAdapter against the behaviours every adapter must honour
@@ -21,7 +25,7 @@ describe('MockAdapter', () => {
     const all: FetchedComment[] = [];
     let cursor: PageCursor | undefined;
     do {
-      const page = await adapter.getComments(postId, cursor);
+      const page = await adapter.getComments(CTX, postId, cursor);
       all.push(...page.items);
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
@@ -33,7 +37,7 @@ describe('MockAdapter', () => {
   });
 
   it('pages through all comments exactly once, then ends with a null cursor', async () => {
-    const first = await adapter.getComments('post-1');
+    const first = await adapter.getComments(CTX, 'post-1');
     expect(first.items).toHaveLength(2);
     expect(first.nextCursor).not.toBeNull();
 
@@ -48,8 +52,9 @@ describe('MockAdapter', () => {
   });
 
   it('round-trips the opaque cursor to fetch the next page', async () => {
-    const first = await adapter.getComments('post-1');
+    const first = await adapter.getComments(CTX, 'post-1');
     const second = await adapter.getComments(
+      CTX,
       'post-1',
       first.nextCursor ?? undefined,
     );
@@ -72,13 +77,15 @@ describe('MockAdapter', () => {
   });
 
   it('returns an empty, terminal page for an unknown post', async () => {
-    const page = await adapter.getComments('no-such-post');
+    const page = await adapter.getComments(CTX, 'no-such-post');
     expect(page.items).toEqual([]);
     expect(page.nextCursor).toBeNull();
   });
 
   it('creates a reply threaded under its parent and reads it back', async () => {
-    const reply = await adapter.replyToComment('m-c2', { text: 'well said' });
+    const reply = await adapter.replyToComment(CTX, 'm-c2', {
+      text: 'well said',
+    });
 
     expect(reply.externalParentCommentId).toBe('m-c2');
     expect(reply.text).toBe('well said');
@@ -92,13 +99,15 @@ describe('MockAdapter', () => {
   it('flattens a reply that would exceed max depth onto the allowed ancestor', async () => {
     // m-r2 is already at depth 2 (the cap); replying to it must not create a
     // depth-3 comment — it re-parents onto m-r2's parent, m-r1.
-    const reply = await adapter.replyToComment('m-r2', { text: 'still here' });
+    const reply = await adapter.replyToComment(CTX, 'm-r2', {
+      text: 'still here',
+    });
     expect(reply.externalParentCommentId).toBe('m-r1');
   });
 
   it('throws a typed ResourceNotFoundError when replying to a missing comment', async () => {
     await expect(
-      adapter.replyToComment('nope', { text: 'hi' }),
+      adapter.replyToComment(CTX, 'nope', { text: 'hi' }),
     ).rejects.toBeInstanceOf(ResourceNotFoundError);
   });
 });

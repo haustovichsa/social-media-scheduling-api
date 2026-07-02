@@ -1,6 +1,8 @@
 import { Platform } from '../../../common/enums/platform.enum';
+import { AccessToken, TokenProvider } from '../../../credentials';
 import { decodeCursor } from '../../cursor';
-import { RateLimitError } from '../../platform-errors';
+import { AdapterContext } from '../../platform-adapter.interface';
+import { RateLimitError, TokenExpiredError } from '../../platform-errors';
 import { FacebookAdapter } from './facebook.adapter';
 import { FacebookGraphClient } from './facebook-graph.client';
 import {
@@ -8,6 +10,8 @@ import {
   FacebookCommentsResponse,
 } from './facebook-graph.types';
 import { FacebookCursor } from './facebook.mapper';
+
+const CTX: AdapterContext = { platformAccountId: 'acc-1' };
 
 const rawComment = (
   overrides: Partial<FacebookComment> = {},
@@ -24,34 +28,74 @@ class FakeGraphClient implements FacebookGraphClient {
   listCommentsResult: FacebookCommentsResponse = { data: [] };
   createReplyResult: FacebookComment = rawComment();
   lastAfter?: string;
+  lastToken?: AccessToken;
+  /** Thrown once, then cleared — models a token the platform rejects once. */
+  errorOnce?: Error;
+  /** Thrown on every call — models a persistent failure. */
   error?: Error;
 
   listComments(
     _postId: string,
+    accessToken: AccessToken,
     after?: string,
   ): Promise<FacebookCommentsResponse> {
     this.lastAfter = after;
-    if (this.error) {
-      return Promise.reject(this.error);
-    }
-    return Promise.resolve(this.listCommentsResult);
+    this.lastToken = accessToken;
+    const err = this.armedError();
+    return err ? Promise.reject(err) : Promise.resolve(this.listCommentsResult);
   }
 
-  createReply(): Promise<FacebookComment> {
+  createReply(
+    _commentId: string,
+    accessToken: AccessToken,
+  ): Promise<FacebookComment> {
+    this.lastToken = accessToken;
+    const err = this.armedError();
+    return err ? Promise.reject(err) : Promise.resolve(this.createReplyResult);
+  }
+
+  /** The error this call should fail with, if any — clearing a one-shot error. */
+  private armedError(): Error | undefined {
     if (this.error) {
-      return Promise.reject(this.error);
+      return this.error;
     }
-    return Promise.resolve(this.createReplyResult);
+    const once = this.errorOnce;
+    this.errorOnce = undefined;
+    return once;
+  }
+}
+
+/** A token provider that hands out predictable tokens and counts refreshes. */
+class FakeTokenProvider implements TokenProvider {
+  getCalls = 0;
+  refreshCalls = 0;
+
+  getToken(): Promise<AccessToken> {
+    this.getCalls += 1;
+    return this.mint('access');
+  }
+
+  refreshToken(): Promise<AccessToken> {
+    this.refreshCalls += 1;
+    return this.mint('refreshed');
+  }
+
+  private mint(kind: string): Promise<AccessToken> {
+    return Promise.resolve(
+      new AccessToken(`${kind}-token`, new Date(Date.now() + 3_600_000)),
+    );
   }
 }
 
 describe('FacebookAdapter', () => {
   let client: FakeGraphClient;
+  let tokens: FakeTokenProvider;
   let adapter: FacebookAdapter;
 
   beforeEach(() => {
     client = new FakeGraphClient();
-    adapter = new FacebookAdapter(client);
+    tokens = new FakeTokenProvider();
+    adapter = new FacebookAdapter(client, tokens);
   });
 
   it('normalises Graph comments into the canonical shape', async () => {
@@ -62,7 +106,7 @@ describe('FacebookAdapter', () => {
       ],
     };
 
-    const page = await adapter.getComments('post-1');
+    const page = await adapter.getComments(CTX, 'post-1');
 
     expect(page.items[0]).toMatchObject({
       externalCommentId: 'c1',
@@ -78,19 +122,25 @@ describe('FacebookAdapter', () => {
     expect(page.items[1].author.displayName).toBe('Unknown');
   });
 
+  it('authenticates the call with a token from the provider', async () => {
+    await adapter.getComments(CTX, 'post-1');
+    expect(tokens.getCalls).toBe(1);
+    expect(client.lastToken?.reveal()).toBe('access-token');
+  });
+
   it('emits an opaque cursor wrapping the Graph `after` token, and round-trips it', async () => {
     client.listCommentsResult = {
       data: [rawComment()],
       paging: { cursors: { after: 'AFTER_TOKEN' }, next: 'https://next' },
     };
 
-    const page = await adapter.getComments('post-1');
+    const page = await adapter.getComments(CTX, 'post-1');
     expect(page.nextCursor).not.toBeNull();
     expect(decodeCursor<FacebookCursor>(page.nextCursor!).after).toBe(
       'AFTER_TOKEN',
     );
 
-    await adapter.getComments('post-1', page.nextCursor!);
+    await adapter.getComments(CTX, 'post-1', page.nextCursor!);
     expect(client.lastAfter).toBe('AFTER_TOKEN');
   });
 
@@ -99,7 +149,7 @@ describe('FacebookAdapter', () => {
       data: [rawComment()],
       paging: { cursors: { after: 'AFTER_TOKEN' } }, // no `next`
     };
-    const page = await adapter.getComments('post-1');
+    const page = await adapter.getComments(CTX, 'post-1');
     expect(page.nextCursor).toBeNull();
   });
 
@@ -111,22 +161,35 @@ describe('FacebookAdapter', () => {
         rawComment({ id: 'r2', parent: { id: 'r1' } }),
       ],
     };
-    const page = await adapter.getComments('post-1');
+    const page = await adapter.getComments(CTX, 'post-1');
     const r2 = page.items.find((c) => c.externalCommentId === 'r2');
     expect(r2?.externalParentCommentId).toBe('c1');
   });
 
   it('maps a created reply, pinning its parent to the replied-to comment', async () => {
     client.createReplyResult = rawComment({ id: 'new-reply' });
-    const reply = await adapter.replyToComment('c1', { text: 'thanks' });
+    const reply = await adapter.replyToComment(CTX, 'c1', { text: 'thanks' });
 
     expect(reply.externalCommentId).toBe('new-reply');
     expect(reply.externalParentCommentId).toBe('c1');
   });
 
+  it('refreshes the token and retries when Graph rejects it as expired', async () => {
+    // Proves the adapter delegates auth to withPlatformToken (whose policy is
+    // unit-tested in with-platform-token.spec.ts) — one page still comes back.
+    client.errorOnce = new TokenExpiredError(Platform.Facebook);
+    client.listCommentsResult = { data: [rawComment({ id: 'c1' })] };
+
+    const page = await adapter.getComments(CTX, 'post-1');
+
+    expect(tokens.refreshCalls).toBe(1);
+    expect(client.lastToken?.reveal()).toBe('refreshed-token');
+    expect(page.items[0].externalCommentId).toBe('c1');
+  });
+
   it('lets typed platform errors from the client propagate untouched', async () => {
     client.error = new RateLimitError(Platform.Facebook);
-    await expect(adapter.getComments('post-1')).rejects.toBeInstanceOf(
+    await expect(adapter.getComments(CTX, 'post-1')).rejects.toBeInstanceOf(
       RateLimitError,
     );
   });

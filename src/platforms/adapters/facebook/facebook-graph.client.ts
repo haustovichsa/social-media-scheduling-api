@@ -1,4 +1,5 @@
 import { Platform } from '../../../common/enums/platform.enum';
+import { AccessToken } from '../../../credentials';
 import {
   PlatformUnavailableError,
   RateLimitError,
@@ -14,18 +15,22 @@ import {
 /**
  * The transport seam between {@link FacebookAdapter} and the Graph API. Keeping
  * it an interface lets the adapter be unit-tested with a fake (no network) and
- * lets the real HTTP/auth concerns evolve independently — per-account tokens
- * arrive with the TokenProvider (TASK-06) and retry/backoff with TASK-11, both
- * behind this same contract. Its one job at this boundary: return raw Graph
- * payloads or throw a typed {@link PlatformError}, never a bare HTTP failure.
+ * lets the real HTTP/auth concerns evolve independently — retry/backoff arrives
+ * with TASK-11 behind this same contract. The per-account {@link AccessToken} is
+ * resolved by the adapter (via the TokenProvider) and handed in per call, so this
+ * client stays a pure transport with no credential lookup of its own. Its one job
+ * at this boundary: return raw Graph payloads or throw a typed
+ * {@link PlatformError}, never a bare HTTP failure.
  */
 export interface FacebookGraphClient {
   listComments(
     externalPostId: string,
+    accessToken: AccessToken,
     after?: string,
   ): Promise<FacebookCommentsResponse>;
   createReply(
     externalCommentId: string,
+    accessToken: AccessToken,
     message: string,
   ): Promise<FacebookComment>;
 }
@@ -45,24 +50,21 @@ const COMMENT_FIELDS =
  * a fake client, so this class is the integration seam rather than the unit
  * under test.
  *
- * Auth is a deliberate placeholder: it reads a single app token from the
- * environment. The TokenProvider (TASK-06) replaces this with per-account
- * credentials behind the same method signatures.
+ * Auth: the caller-supplied {@link AccessToken} is only unwrapped here, at the
+ * moment it goes onto the outbound Graph request. It travels in the query string
+ * (as Graph requires), so the built URL is never logged — error messages carry
+ * only the status code, never the URL — to keep the token out of logs (RK-6).
  */
 export class HttpFacebookGraphClient implements FacebookGraphClient {
-  private accessToken(): string {
-    // TASK-06: resolve the owning account's token via the TokenProvider.
-    return process.env.FACEBOOK_ACCESS_TOKEN ?? '';
-  }
-
   async listComments(
     externalPostId: string,
+    accessToken: AccessToken,
     after?: string,
   ): Promise<FacebookCommentsResponse> {
     const params = new URLSearchParams({
       fields: COMMENT_FIELDS,
       filter: 'stream',
-      access_token: this.accessToken(),
+      access_token: accessToken.reveal(),
     });
     if (after) {
       params.set('after', after);
@@ -76,13 +78,14 @@ export class HttpFacebookGraphClient implements FacebookGraphClient {
 
   async createReply(
     externalCommentId: string,
+    accessToken: AccessToken,
     message: string,
   ): Promise<FacebookComment> {
     const params = new URLSearchParams({
       // Ask for the created comment's fields back so we can return a full reply
       // without a second round-trip.
       fields: COMMENT_FIELDS,
-      access_token: this.accessToken(),
+      access_token: accessToken.reveal(),
     });
     return this.request<FacebookComment>(
       `${GRAPH_BASE_URL}/${encodeURIComponent(externalCommentId)}/comments?${params}`,

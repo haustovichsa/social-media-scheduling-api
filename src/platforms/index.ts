@@ -10,7 +10,9 @@ export { PlatformsModule } from './platforms.module';
 export { MockAdapter } from './adapters/mock/mock.adapter';
 export { decodeCursor, encodeCursor } from './cursor';
 export { enforceThreadDepth } from './thread-depth';
+export { withPlatformToken } from './with-platform-token';
 export {
+  AdapterContext,
   PLATFORM_ADAPTERS,
   PlatformAdapter,
   PlatformCapabilities,

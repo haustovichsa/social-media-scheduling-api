@@ -4,6 +4,7 @@ import { Platform } from '../common/enums/platform.enum';
 import { Page } from '../domain';
 import { AdapterRegistry } from './adapter-registry';
 import {
+  AdapterContext,
   PLATFORM_ADAPTERS,
   PlatformAdapter,
 } from './platform-adapter.interface';
@@ -25,6 +26,7 @@ function fakeAdapter(platform: Platform): PlatformAdapter {
       return Promise.resolve({ items: [], nextCursor: null });
     },
     replyToComment(
+      _ctx: AdapterContext,
       externalCommentId: string,
       body: ReplyInput,
     ): Promise<FetchedReply> {

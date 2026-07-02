@@ -1,5 +1,6 @@
 import { Module, Provider, Type } from '@nestjs/common';
 
+import { CredentialsModule } from '../credentials';
 import { AdapterRegistry } from './adapter-registry';
 import { FacebookAdapter } from './adapters/facebook/facebook.adapter';
 import {
@@ -31,6 +32,10 @@ const supportProviders: Provider[] = [
 ];
 
 @Module({
+  // CredentialsModule supplies the TOKEN_PROVIDER adapters resolve tokens
+  // through. It has no database dependency, so the platform wiring stays
+  // unit-testable without a Mongo connection.
+  imports: [CredentialsModule],
   providers: [
     ...adapters,
     ...supportProviders,

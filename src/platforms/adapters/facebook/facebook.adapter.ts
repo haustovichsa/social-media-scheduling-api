@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { Platform } from '../../../common/enums/platform.enum';
+import { TOKEN_PROVIDER, TokenProvider } from '../../../credentials';
 import { Page, PageCursor } from '../../../domain';
 import { decodeCursor } from '../../cursor';
 import {
+  AdapterContext,
   PlatformAdapter,
   PlatformCapabilities,
 } from '../../platform-adapter.interface';
@@ -13,6 +15,7 @@ import {
   ReplyInput,
 } from '../../platform-comment';
 import { enforceThreadDepth } from '../../thread-depth';
+import { withPlatformToken } from '../../with-platform-token';
 import {
   FACEBOOK_GRAPH_CLIENT,
   FacebookGraphClient,
@@ -31,6 +34,11 @@ import { FacebookCursor, mapComment, mapNextCursor } from './facebook.mapper';
  * `maxThreadDepth` is 1 and every fetched page is run through
  * {@link enforceThreadDepth} to guarantee that shape even if the stream ever
  * returns a deeper chain.
+ *
+ * Auth: token resolution, leak-proof wrapping, refresh-once-on-expiry, and the
+ * missing-credential-to-{@link TokenExpiredError} mapping all live in the shared
+ * {@link withPlatformToken} helper, which the adapter delegates to per call —
+ * never reading a token directly.
  */
 @Injectable()
 export class FacebookAdapter implements PlatformAdapter {
@@ -43,9 +51,12 @@ export class FacebookAdapter implements PlatformAdapter {
   constructor(
     @Inject(FACEBOOK_GRAPH_CLIENT)
     private readonly client: FacebookGraphClient,
+    @Inject(TOKEN_PROVIDER)
+    private readonly tokens: TokenProvider,
   ) {}
 
   async getComments(
+    ctx: AdapterContext,
     externalPostId: string,
     cursor?: PageCursor,
   ): Promise<Page<FetchedComment>> {
@@ -53,7 +64,12 @@ export class FacebookAdapter implements PlatformAdapter {
       ? decodeCursor<FacebookCursor>(cursor).after
       : undefined;
 
-    const response = await this.client.listComments(externalPostId, after);
+    const response = await withPlatformToken(
+      this.tokens,
+      this.platform,
+      ctx,
+      (token) => this.client.listComments(externalPostId, token, after),
+    );
 
     const items = enforceThreadDepth(
       response.data.map(mapComment),
@@ -64,10 +80,16 @@ export class FacebookAdapter implements PlatformAdapter {
   }
 
   async replyToComment(
+    ctx: AdapterContext,
     externalCommentId: string,
     body: ReplyInput,
   ): Promise<FetchedReply> {
-    const created = await this.client.createReply(externalCommentId, body.text);
+    const created = await withPlatformToken(
+      this.tokens,
+      this.platform,
+      ctx,
+      (token) => this.client.createReply(externalCommentId, token, body.text),
+    );
 
     // The created comment's `parent` may be elided by Graph on the write
     // response, so pin the parent to the comment we replied to — which is the

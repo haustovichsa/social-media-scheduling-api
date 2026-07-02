@@ -21,9 +21,14 @@ concrete platform — so **adding a platform touches only this folder** (NFR-1, 
 2. **Write the adapter.** Create an `@Injectable()` class implementing
    `PlatformAdapter`. Set `platform` to your new enum value, declare
    `capabilities` (e.g. `maxThreadDepth`), and map the platform's payloads to
-   `FetchedComment` / `FetchedReply`. Resolve credentials per account via the
-   `TokenProvider` (TASK-06). **Throw only `PlatformError` subclasses** — a raw
-   vendor error escaping the adapter is a bug.
+   `FetchedComment` / `FetchedReply`. For credentials, inject the `TokenProvider`
+   (`TOKEN_PROVIDER`, from `CredentialsModule`) and wrap each platform call in the
+   shared `withPlatformToken(tokens, platform, ctx, call)` helper — it resolves
+   the account's token, refreshes-and-retries once on expiry, and normalises a
+   `MissingCredentialError` to a `TokenExpiredError` for you. Never read a token
+   directly, and pass the `AccessToken` on rather than a bare string so it can't
+   leak (RK-6). **Throw only `PlatformError` subclasses** — a raw vendor error
+   escaping the adapter is a bug.
 3. **Register it (one line).** Add the class to the `adapters` array in
    `platforms.module.ts`. The factory collects it into `PLATFORM_ADAPTERS` and
    the registry indexes it.
