@@ -285,7 +285,16 @@ depend only on `getToken`.
 
 ---
 
-## Data model
+## Data model (database schema)
+
+Three MongoDB collections. `platform_accounts` and `posts` model the accounts and
+published posts this feature reads against (assumed to already exist in the
+scheduler, A-2/A-3); `comments` is the local copy this feature owns. All three
+carry `orgId` for tenant scoping (§9) and Mongoose `timestamps` (`createdAt`,
+`updatedAt`). Implemented in
+[`src/persistence/schemas/`](src/persistence/schemas).
+
+**Collections at a glance**
 
 | Collection          | Purpose                                                                                          | Key indexes |
 | ------------------- | ------------------------------------------------------------------------------------------------ | ----------- |
@@ -293,10 +302,76 @@ depend only on `getToken`.
 | `posts`             | A published post; maps our `_id` to the platform's `externalPostId`; the feature only touches `published` posts | unique `{ platform, externalPostId }` |
 | `comments`          | Local copy of comments **and** replies, flat, linked by `parentCommentId`                        | unique `{ platform, externalCommentId }`; `{ postId, platformCreatedAt }`; `{ parentCommentId, platformCreatedAt }` |
 
-`orgId` is stored on the tenant-owned collections for scoping. Two collections
-the seams in §3 and §4 would add — a per-post `sync_states` bookmark (freshness /
-resumable cursor) and a `reply_outbox` (unique `{ idempotencyKey }`, for
-at-most-once replies) — are described there but not part of the built schema.
+### `platform_accounts`
+
+A connected social account — the unit that owns OAuth credentials on a platform.
+The token itself is never stored here; only an opaque `tokenRef` the
+`TokenProvider` resolves to a live secret (§9, RK-6).
+
+| Field               | Type              | Notes |
+| ------------------- | ----------------- | ----- |
+| `_id`               | ObjectId          | PK |
+| `platform`          | enum `Platform`   | required |
+| `externalAccountId` | string            | required; the account id as the platform knows it (e.g. a Facebook Page id) |
+| `orgId`             | string            | required, indexed; tenant scope |
+| `tokenRef`          | string            | required; opaque pointer into the secret store — never the token |
+| `createdAt` / `updatedAt` | Date        | Mongoose timestamps |
+
+*Indexes:* unique `{ platform, externalAccountId }` (one link per account; a
+platform-only lookup uses this index's leftmost prefix); `{ orgId }`.
+
+### `posts`
+
+A post the scheduler has published to a platform. Kept locally so comments can
+reference it by our own `_id` while still carrying the `externalPostId` adapters
+need. The comment feature only operates on `published` posts.
+
+| Field               | Type                        | Notes |
+| ------------------- | --------------------------- | ----- |
+| `_id`               | ObjectId                    | PK |
+| `platformAccountId` | ObjectId → `platform_accounts` | required |
+| `platform`          | enum `Platform`             | required; denormalised from the account so adapter routing needs no extra lookup |
+| `externalPostId`    | string                      | required; the key for all adapter calls |
+| `status`            | enum `draft` \| `scheduled` \| `published` | required, default `draft` |
+| `orgId`             | string                      | required, indexed; tenant scope |
+| `createdAt` / `updatedAt` | Date                  | Mongoose timestamps |
+
+*Indexes:* unique `{ platform, externalPostId }` (one external post per platform;
+also speeds the pre-fetch lookup); `{ orgId }`.
+
+### `comments`
+
+The local copy of platform comments **and** replies, flat, one row per platform
+comment. Threading is by reference: a reply points at its parent via
+`parentCommentId`; a top-level comment has `null` (§5). Each adapter enforces its
+platform's max nesting depth on ingest.
+
+| Field               | Type                    | Notes |
+| ------------------- | ----------------------- | ----- |
+| `_id`               | ObjectId                | PK — the stable id a reply targets |
+| `postId`            | ObjectId → `posts`      | required |
+| `platform`          | enum `Platform`         | required |
+| `externalCommentId` | string                  | required; the comment id as the platform knows it |
+| `parentCommentId`   | ObjectId → `comments` \| `null` | default `null`; `null` = top-level |
+| `author`            | embedded `CommentAuthor` | `{ externalAuthorId, displayName, avatarUrl? }` — a snapshot, no own `_id` |
+| `text`              | string                  | required |
+| `platformCreatedAt` | Date                    | required; the sort key for paging |
+| `ingestedAt`        | Date                    | required; when we first pulled the row in |
+| `syncedAt`          | Date                    | required; last reconciliation with the platform (surfaced as freshness) |
+| `orgId`             | string                  | required, indexed; tenant scope |
+| `createdAt` / `updatedAt` | Date              | Mongoose timestamps |
+
+*Indexes:* unique `{ platform, externalCommentId }` (the upsert key, so a refresh
+updates the row instead of inserting a copy); `{ postId, platformCreatedAt }` (the
+primary read path — stable oldest-first cursor paging); `{ parentCommentId,
+platformCreatedAt }` (the replies under a comment); `{ orgId }`.
+
+### Collections not built (seam schemas)
+
+Two collections the seams in §3 and §4 would add are described there but are **not
+part of the built schema**: a per-post `sync_states` bookmark (freshness /
+resumable platform cursor) and a `reply_outbox` (unique `{ idempotencyKey }`, for
+at-most-once replies).
 
 ---
 
