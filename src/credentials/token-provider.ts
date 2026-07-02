@@ -1,39 +1,41 @@
-import { AccessToken } from './access-token';
-
-/**
- * No credential is on file for the account. Platform-agnostic on purpose — the
- * provider doesn't know which platform the account belongs to. The calling
- * adapter maps this onto a {@link TokenExpiredError} for *its* platform so the
- * core still only ever sees the shared error taxonomy (AC-5).
- */
-export class MissingCredentialError extends Error {
-  constructor(readonly platformAccountId: string) {
-    // Never interpolate the secret (there is none) — only the account id.
-    super(`No credential on file for platform account "${platformAccountId}"`);
-    this.name = 'MissingCredentialError';
-  }
-}
-
 /**
  * The one way any adapter obtains a platform token (NFR-4, RK-6). Callers pass
- * our `platformAccountId`; the provider resolves it to a live {@link AccessToken}
- * out of a {@link SecretStore}, caching until expiry. Tokens are only ever read
- * through this interface, so there is a single place to add rotation, auditing,
- * or a real secret manager later.
+ * our `platformAccountId`; the provider resolves it to a usable access token.
+ * Adapters depend only on this interface via {@link TOKEN_PROVIDER} and never
+ * read a secret directly, so there is a single seam where a real secret manager
+ * (Vault, AWS/GCP Secret Manager), token caching, rotation, refresh-on-expiry,
+ * and a leak-proof token wrapper would plug in — see DESIGN.md §9. The reference
+ * implementation ({@link EnvTokenProvider}) reads from the environment.
  */
 export interface TokenProvider {
-  /**
-   * A valid token for the account, minting or reusing a cached one. Throws
-   * {@link MissingCredentialError} if the account has no credential on file.
-   */
-  getToken(platformAccountId: string): Promise<AccessToken>;
-
-  /**
-   * Force a fresh token, bypassing any cache — the hook an adapter calls after a
-   * platform rejects the current token as expired, before retrying once.
-   */
-  refreshToken(platformAccountId: string): Promise<AccessToken>;
+  /** A usable access token for the account. */
+  getToken(platformAccountId: string): Promise<string>;
 }
 
 /** DI token so consumers depend on the {@link TokenProvider} interface. */
 export const TOKEN_PROVIDER = Symbol('TOKEN_PROVIDER');
+
+const ENV_PREFIX = 'SOCIAL_ACCESS_TOKEN_';
+
+/** Env var names allow only word characters; normalise an account id to that. */
+function envKey(platformAccountId: string): string {
+  return `${ENV_PREFIX}${platformAccountId.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}`;
+}
+
+/**
+ * Reference {@link TokenProvider} backed by environment variables — the local/dev
+ * seam a real credential store replaces. Each account's token lives in
+ * `SOCIAL_ACCESS_TOKEN_<ACCOUNT_ID>` (id upper-cased, non-word chars → `_`). It
+ * throws when no credential is on file rather than returning an empty token.
+ */
+export class EnvTokenProvider implements TokenProvider {
+  getToken(platformAccountId: string): Promise<string> {
+    const token = process.env[envKey(platformAccountId)];
+    if (!token) {
+      throw new Error(
+        `No credential on file for platform account "${platformAccountId}"`,
+      );
+    }
+    return Promise.resolve(token);
+  }
+}

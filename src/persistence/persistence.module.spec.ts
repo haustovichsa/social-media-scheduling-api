@@ -6,19 +6,17 @@ import { Model, Types } from 'mongoose';
 import { Platform } from '../common/enums/platform.enum';
 import { PersistenceModule } from './persistence.module';
 import { Comment } from './schemas/comment.schema';
-import { ReplyOutbox, ReplyStatus } from './schemas/reply-outbox.schema';
 
 /**
  * Verifies the two guarantees the data model exists to provide (TASK-02 DoD):
- * comment identity/uniqueness and self-referential threading, plus the reply
- * outbox's idempotency key. Runs against a real (in-memory) Mongo so the
- * indexes are actually built and enforced, not just declared.
+ * comment identity/uniqueness and self-referential threading. Runs against a
+ * real (in-memory) Mongo so the indexes are actually built and enforced, not
+ * just declared.
  */
 describe('PersistenceModule (in-memory Mongo)', () => {
   let mongo: MongoMemoryServer;
   let moduleRef: TestingModule;
   let commentModel: Model<Comment>;
-  let replyOutboxModel: Model<ReplyOutbox>;
 
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create();
@@ -28,15 +26,9 @@ describe('PersistenceModule (in-memory Mongo)', () => {
     }).compile();
 
     commentModel = moduleRef.get<Model<Comment>>(getModelToken(Comment.name));
-    replyOutboxModel = moduleRef.get<Model<ReplyOutbox>>(
-      getModelToken(ReplyOutbox.name),
-    );
 
     // Force declared indexes to be built before we assert on uniqueness.
-    await Promise.all([
-      commentModel.syncIndexes(),
-      replyOutboxModel.syncIndexes(),
-    ]);
+    await commentModel.syncIndexes();
   }, 60_000);
 
   afterAll(async () => {
@@ -106,23 +98,5 @@ describe('PersistenceModule (in-memory Mongo)', () => {
       baseComment({ externalCommentId: 'top' }),
     );
     expect(top.parentCommentId).toBeNull();
-  });
-
-  it('enforces a unique idempotencyKey on the reply outbox', async () => {
-    await replyOutboxModel.create({
-      idempotencyKey: 'key-1',
-      commentId: new Types.ObjectId(),
-      status: ReplyStatus.Pending,
-      orgId: 'org-1',
-    });
-
-    await expect(
-      replyOutboxModel.create({
-        idempotencyKey: 'key-1',
-        commentId: new Types.ObjectId(),
-        status: ReplyStatus.Pending,
-        orgId: 'org-1',
-      }),
-    ).rejects.toMatchObject({ code: 11000 });
   });
 });

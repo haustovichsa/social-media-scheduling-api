@@ -3,11 +3,10 @@ import { Types } from 'mongoose';
 import { decodeCursor, encodeCursor, PageCursor } from '../domain';
 
 /**
- * The read service's *local-store* pagination cursor — distinct from both a
- * platform's opaque paging token (which each adapter owns) and the per-post
- * platform sync cursor (kept in `SyncState`). This one encodes a position in our
- * own `comments` collection so `GET /posts/:id/comments` can page the local copy
- * stably (A-4, NFR-6).
+ * The read service's *local-store* pagination cursor — distinct from a
+ * platform's opaque paging token (which each adapter owns). This one encodes a
+ * position in our own `comments` collection so `GET /posts/:id/comments` can page
+ * the local copy stably (A-4, NFR-6).
  *
  * We page by keyset on the same key the read index is sorted by
  * (`{ platformCreatedAt, _id }`), not by skip/offset: keyset paging is stable

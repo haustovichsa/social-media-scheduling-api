@@ -26,8 +26,8 @@ export const CommentAuthorSchema = SchemaFactory.createForClass(CommentAuthor);
 
 /**
  * Our local copy of a platform comment (A-4). The platform owns the truth; this
- * is a cache we refresh on demand and in the background, which lets us page
- * stably, survive platform outages, and stay under rate limits.
+ * is a cache we refresh on demand, which lets us page stably and gives replies a
+ * stable id to target.
  *
  * Threading (A-5): replies are modelled as separate documents that point at
  * their parent via `parentCommentId` (a self-reference), NOT nested inside the
@@ -70,7 +70,7 @@ export class Comment {
   @Prop({ required: true, default: () => new Date() })
   ingestedAt!: Date;
 
-  /** When we last reconciled this row with the platform (drives staleness). */
+  /** When we last reconciled this row with the platform (surfaced as freshness). */
   @Prop({ required: true, default: () => new Date() })
   syncedAt!: Date;
 

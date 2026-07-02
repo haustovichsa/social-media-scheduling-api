@@ -10,7 +10,6 @@ import { Platform } from '../enums/platform.enum';
 import {
   CommentNotFoundError,
   PostNotFoundError,
-  ReplyInProgressError,
 } from '../../comments/comment-errors';
 import {
   AdapterNotFoundError,
@@ -74,12 +73,6 @@ describe('DomainExceptionFilter', () => {
       new CommentNotFoundError('c1'),
       404,
       'COMMENT_NOT_FOUND',
-    ],
-    [
-      'reply in progress',
-      new ReplyInProgressError('k1'),
-      409,
-      'REPLY_IN_PROGRESS',
     ],
     [
       'platform resource gone',

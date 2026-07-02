@@ -12,7 +12,6 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -80,7 +79,7 @@ export class CommentController {
     description:
       'Returns one page of comments in the canonical shape with an opaque ' +
       '`nextCursor` and a `syncedAt` freshness stamp. Served from our local ' +
-      'copy, refreshed from the platform on demand when stale (A-4).',
+      'copy, refreshed from the platform on the first page (A-4).',
   })
   @ApiParam({ name: 'postId', description: 'Our internal post id.' })
   @ApiOkResponse({ type: CommentPageResponseDto })
@@ -108,9 +107,8 @@ export class CommentController {
     summary: 'Reply to a comment',
     description:
       'Posts a reply to the platform, then persists and returns it in the ' +
-      'canonical shape (FR-2). The body carries an `idempotencyKey`: retrying ' +
-      'the same key never posts twice (RK-4) — it replays the stored reply, or ' +
-      'returns 409 while a first attempt is still settling.',
+      'canonical shape (FR-2). At-most-once delivery under client retries (an ' +
+      'idempotency key) is a designed-not-built seam — see DESIGN.md §4.',
   })
   @ApiParam({
     name: 'commentId',
@@ -119,11 +117,6 @@ export class CommentController {
   @ApiCreatedResponse({ type: CommentResponseDto })
   @ApiNotFoundResponse({
     description: 'No such comment owned by the caller.',
-    type: ApiErrorResponse,
-  })
-  @ApiConflictResponse({
-    description:
-      'A reply for this idempotency key is still in progress; retry the same key later.',
     type: ApiErrorResponse,
   })
   async replyToComment(
@@ -135,7 +128,6 @@ export class CommentController {
       orgId,
       commentId,
       text: body.text,
-      idempotencyKey: body.idempotencyKey,
     });
     return CommentResponseDto.fromDomain(reply);
   }

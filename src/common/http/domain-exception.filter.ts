@@ -16,7 +16,6 @@ import { STATUS_CODES } from 'node:http';
 import {
   CommentNotFoundError,
   PostNotFoundError,
-  ReplyInProgressError,
 } from '../../comments/comment-errors';
 import {
   AdapterNotFoundError,
@@ -59,10 +58,6 @@ const DOMAIN_ERROR_MAP = new Map<ErrorCtor, { status: number; code: string }>([
   [
     CommentNotFoundError,
     { status: HttpStatus.NOT_FOUND, code: 'COMMENT_NOT_FOUND' },
-  ],
-  [
-    ReplyInProgressError,
-    { status: HttpStatus.CONFLICT, code: 'REPLY_IN_PROGRESS' },
   ],
 ]);
 

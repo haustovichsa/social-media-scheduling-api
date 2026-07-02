@@ -21,10 +21,13 @@ Everything platform-specific lives behind a single `PlatformAdapter` interface;
 services depend only on an `AdapterRegistry`, never on a concrete platform, so
 adding a platform means writing one adapter class and registering it — no core
 code changes (NFR-1). Comments are cached in our own MongoDB in one shared
-format and refreshed from the platform on demand when stale; replies are sent
-to the platform first and only then persisted. Every request is tenant-scoped,
-platform failures are mapped to a documented error taxonomy, and reply sends are
-idempotent. See [`DESIGN.md`](DESIGN.md) for the reasoning behind each choice.
+format and refreshed from the platform on read; replies are sent to the platform
+first and only then persisted. Every request is tenant-scoped and platform
+failures are mapped to a documented error taxonomy. Production concerns that the
+brief only asked us to *design* — freshness/background sync, idempotent replies,
+per-platform rate-limiting/retry, and a real secret manager — are called out as
+seams in [`DESIGN.md`](DESIGN.md) rather than fully built. See it for the
+reasoning behind each choice.
 
 ---
 
@@ -128,14 +131,18 @@ curl -H "Authorization: Bearer devkey-org1" \
 Returns a page of comments plus an opaque `nextCursor` (`null` = end of list)
 and a `syncedAt` freshness stamp.
 
-**Reply to a comment** (idempotent — safe to retry with the same key):
+**Reply to a comment:**
 
 ```bash
 curl -X POST -H "Authorization: Bearer devkey-org1" \
   -H "Content-Type: application/json" \
-  -d '{"text":"Thanks for the feedback!","idempotencyKey":"a1b2c3"}' \
+  -d '{"text":"Thanks for the feedback!"}' \
   "localhost:3000/comments/<commentId>/replies"
 ```
+
+The reply is written through to the platform first, then persisted. Making a
+retried send safe (at-most-once via an idempotency key) is designed but not
+built — see [`DESIGN.md`](DESIGN.md#4-replies-are-write-through).
 
 Platform problems (throttling, expired token, deleted comment) come back as
 documented HTTP errors in a consistent envelope, never as raw platform responses
@@ -160,9 +167,9 @@ or 500s. See the error taxonomy in [`DESIGN.md`](DESIGN.md#7-error-taxonomy-mapp
 ## Testing
 
 Tests run with no external services — an in-memory MongoDB is started per suite.
-The suite covers the main read and reply paths plus edge cases (empty/paged/
-stale reads, duplicate replies, cross-org access, rate-limit backoff), and a
-**reusable adapter contract test** that every platform adapter must pass — the
+The suite covers the main read and reply paths plus edge cases (empty/paged
+reads, cross-org access → 404, the platform error taxonomy → HTTP mapping), and
+a **reusable adapter contract test** that every platform adapter must pass — the
 mechanism that keeps the extension point honest as platforms are added.
 
 ```bash
@@ -175,12 +182,11 @@ npm test
 src/
   comments/      Read & reply services, repository, controller, DTOs, error types
   platforms/     The extension point: adapter interface, registry, adapters,
-                 shared fetched shapes, resilience wrapper (rate-limit + retry)
+                 shared fetched shapes, opaque cursor + thread-depth helpers
     adapters/    mock/ (tests & demos) and facebook/ (reference real adapter)
-    resilience/  Per-platform rate limiter, retry/backoff, resilient decorator
   domain/        Platform-free canonical types (Comment, Reply, Page, Author)
-  persistence/   @nestjs/mongoose schemas (posts, comments, sync state, outbox…)
-  credentials/   TokenProvider + secret-store stub (tokens never leak, RK-6)
+  persistence/   @nestjs/mongoose schemas (platform accounts, posts, comments)
+  credentials/   TokenProvider interface + env-backed stub (tokens never leak, RK-6)
   auth/          Auth guard + caller resolver (tenant scoping)
   common/        Platform enum, HTTP error filter & envelope, decorators
   config/        Env validation

@@ -11,10 +11,6 @@ export { MockAdapter } from './adapters/mock/mock.adapter';
 export { decodeCursor, encodeCursor } from './cursor';
 export { enforceThreadDepth } from './thread-depth';
 export { withPlatformToken } from './with-platform-token';
-// The resilience layer (rate limiter, retry, ResilientAdapter) is an
-// implementation detail below the adapter boundary — wired once by
-// PlatformsModule and invisible to callers — so it is deliberately not
-// re-exported here.
 export {
   AdapterContext,
   PLATFORM_ADAPTERS,

@@ -7,11 +7,7 @@ import { Platform } from '../../common/enums/platform.enum';
 import { Comment, Page, Reply } from '../../domain';
 import { CommentPageResponseDto } from './comment-page.response.dto';
 import { CommentResponseDto } from './comment.response.dto';
-import {
-  CreateReplyDto,
-  MAX_IDEMPOTENCY_KEY_LENGTH,
-  MAX_REPLY_LENGTH,
-} from './create-reply.dto';
+import { CreateReplyDto, MAX_REPLY_LENGTH } from './create-reply.dto';
 import {
   DEFAULT_PAGE_LIMIT,
   ListCommentsQueryDto,
@@ -36,39 +32,23 @@ function validateDto<T extends object>(
 
 describe('CreateReplyDto', () => {
   it('accepts a well-formed body', () => {
-    expect(
-      validateDto(CreateReplyDto, { text: 'thanks!', idempotencyKey: 'k-1' }),
-    ).toEqual([]);
+    expect(validateDto(CreateReplyDto, { text: 'thanks!' })).toEqual([]);
   });
 
-  it('rejects empty text and a missing idempotency key', () => {
-    const errors = validateDto(CreateReplyDto, { text: '' });
-    expect(errors).toContain('text');
-    expect(errors).toContain('idempotencyKey');
+  it('rejects empty text', () => {
+    expect(validateDto(CreateReplyDto, { text: '' })).toContain('text');
   });
 
   it('rejects text over the max length', () => {
     expect(
       validateDto(CreateReplyDto, {
         text: 'x'.repeat(MAX_REPLY_LENGTH + 1),
-        idempotencyKey: 'k-1',
       }),
     ).toContain('text');
-  });
-
-  it('rejects an over-long idempotency key', () => {
-    expect(
-      validateDto(CreateReplyDto, {
-        text: 'ok',
-        idempotencyKey: 'x'.repeat(MAX_IDEMPOTENCY_KEY_LENGTH + 1),
-      }),
-    ).toContain('idempotencyKey');
   });
 
   it('rejects a non-string text', () => {
-    expect(
-      validateDto(CreateReplyDto, { text: 42, idempotencyKey: 'k-1' }),
-    ).toContain('text');
+    expect(validateDto(CreateReplyDto, { text: 42 })).toContain('text');
   });
 });
 

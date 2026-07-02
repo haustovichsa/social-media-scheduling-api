@@ -7,8 +7,6 @@ import {
   PlatformAccountSchema,
 } from './schemas/platform-account.schema';
 import { Post, PostSchema } from './schemas/post.schema';
-import { ReplyOutbox, ReplyOutboxSchema } from './schemas/reply-outbox.schema';
-import { SyncState, SyncStateSchema } from './schemas/sync-state.schema';
 
 /**
  * Registers every collection's model with Mongoose and re-exports
@@ -21,8 +19,6 @@ const models = MongooseModule.forFeature([
   { name: PlatformAccount.name, schema: PlatformAccountSchema },
   { name: Post.name, schema: PostSchema },
   { name: Comment.name, schema: CommentSchema },
-  { name: SyncState.name, schema: SyncStateSchema },
-  { name: ReplyOutbox.name, schema: ReplyOutboxSchema },
 ]);
 
 @Module({

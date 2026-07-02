@@ -35,10 +35,9 @@ import { FacebookCursor, mapComment, mapNextCursor } from './facebook.mapper';
  * {@link enforceThreadDepth} to guarantee that shape even if the stream ever
  * returns a deeper chain.
  *
- * Auth: token resolution, leak-proof wrapping, refresh-once-on-expiry, and the
- * missing-credential-to-{@link TokenExpiredError} mapping all live in the shared
- * {@link withPlatformToken} helper, which the adapter delegates to per call —
- * never reading a token directly.
+ * Auth: token resolution and the failure-to-{@link TokenExpiredError} mapping
+ * live in the shared {@link withPlatformToken} helper, which the adapter
+ * delegates to per call — never reading a token directly.
  */
 @Injectable()
 export class FacebookAdapter implements PlatformAdapter {

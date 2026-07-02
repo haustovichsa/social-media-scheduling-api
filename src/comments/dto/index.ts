@@ -4,11 +4,7 @@
  * contract and map from the canonical domain model via their `fromDomain`
  * factories. The controllers in TASK-09 consume these.
  */
-export {
-  CreateReplyDto,
-  MAX_REPLY_LENGTH,
-  MAX_IDEMPOTENCY_KEY_LENGTH,
-} from './create-reply.dto';
+export { CreateReplyDto, MAX_REPLY_LENGTH } from './create-reply.dto';
 export {
   ListCommentsQueryDto,
   DEFAULT_PAGE_LIMIT,

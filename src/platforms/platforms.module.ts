@@ -12,7 +12,6 @@ import {
   PLATFORM_ADAPTERS,
   PlatformAdapter,
 } from './platform-adapter.interface';
-import { withResilience } from './resilience/resilience.config';
 
 /**
  * The one place a platform plugs in. To add a platform: implement
@@ -42,13 +41,15 @@ const supportProviders: Provider[] = [
     ...supportProviders,
     {
       // Collect every registered adapter instance into the array token the
-      // registry consumes, wrapping each in its resilience decorator (TASK-11):
-      // a per-platform rate limiter plus retry/backoff, transparent to the
-      // registry and every caller above it. `inject` mirrors `adapters`, so
-      // registering a platform is the single edit above — nothing here changes.
+      // registry consumes. `inject` mirrors `adapters`, so registering a
+      // platform is the single edit above — nothing here changes.
+      //
+      // Per-platform rate limiting and retry/backoff are a deliberately
+      // designed-not-built seam here: a decorator wrapping each adapter at this
+      // exact point would add them without touching the registry or any caller
+      // (see DESIGN.md §8).
       provide: PLATFORM_ADAPTERS,
-      useFactory: (...instances: PlatformAdapter[]) =>
-        instances.map((adapter) => withResilience(adapter)),
+      useFactory: (...instances: PlatformAdapter[]) => instances,
       inject: adapters,
     },
     AdapterRegistry,

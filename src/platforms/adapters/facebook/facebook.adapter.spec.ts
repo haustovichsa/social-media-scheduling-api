@@ -1,8 +1,8 @@
 import { Platform } from '../../../common/enums/platform.enum';
-import { AccessToken, TokenProvider } from '../../../credentials';
+import { TokenProvider } from '../../../credentials';
 import { decodeCursor } from '../../cursor';
 import { AdapterContext } from '../../platform-adapter.interface';
-import { RateLimitError, TokenExpiredError } from '../../platform-errors';
+import { RateLimitError } from '../../platform-errors';
 import { FacebookAdapter } from './facebook.adapter';
 import { FacebookGraphClient } from './facebook-graph.client';
 import {
@@ -28,62 +28,40 @@ class FakeGraphClient implements FacebookGraphClient {
   listCommentsResult: FacebookCommentsResponse = { data: [] };
   createReplyResult: FacebookComment = rawComment();
   lastAfter?: string;
-  lastToken?: AccessToken;
-  /** Thrown once, then cleared — models a token the platform rejects once. */
-  errorOnce?: Error;
+  lastToken?: string;
   /** Thrown on every call — models a persistent failure. */
   error?: Error;
 
   listComments(
     _postId: string,
-    accessToken: AccessToken,
+    accessToken: string,
     after?: string,
   ): Promise<FacebookCommentsResponse> {
     this.lastAfter = after;
     this.lastToken = accessToken;
-    const err = this.armedError();
-    return err ? Promise.reject(err) : Promise.resolve(this.listCommentsResult);
+    return this.error
+      ? Promise.reject(this.error)
+      : Promise.resolve(this.listCommentsResult);
   }
 
   createReply(
     _commentId: string,
-    accessToken: AccessToken,
+    accessToken: string,
   ): Promise<FacebookComment> {
     this.lastToken = accessToken;
-    const err = this.armedError();
-    return err ? Promise.reject(err) : Promise.resolve(this.createReplyResult);
-  }
-
-  /** The error this call should fail with, if any — clearing a one-shot error. */
-  private armedError(): Error | undefined {
-    if (this.error) {
-      return this.error;
-    }
-    const once = this.errorOnce;
-    this.errorOnce = undefined;
-    return once;
+    return this.error
+      ? Promise.reject(this.error)
+      : Promise.resolve(this.createReplyResult);
   }
 }
 
-/** A token provider that hands out predictable tokens and counts refreshes. */
+/** A token provider that hands out a predictable token and counts calls. */
 class FakeTokenProvider implements TokenProvider {
   getCalls = 0;
-  refreshCalls = 0;
 
-  getToken(): Promise<AccessToken> {
+  getToken(): Promise<string> {
     this.getCalls += 1;
-    return this.mint('access');
-  }
-
-  refreshToken(): Promise<AccessToken> {
-    this.refreshCalls += 1;
-    return this.mint('refreshed');
-  }
-
-  private mint(kind: string): Promise<AccessToken> {
-    return Promise.resolve(
-      new AccessToken(`${kind}-token`, new Date(Date.now() + 3_600_000)),
-    );
+    return Promise.resolve('access-token');
   }
 }
 
@@ -125,7 +103,7 @@ describe('FacebookAdapter', () => {
   it('authenticates the call with a token from the provider', async () => {
     await adapter.getComments(CTX, 'post-1');
     expect(tokens.getCalls).toBe(1);
-    expect(client.lastToken?.reveal()).toBe('access-token');
+    expect(client.lastToken).toBe('access-token');
   });
 
   it('emits an opaque cursor wrapping the Graph `after` token, and round-trips it', async () => {
@@ -172,19 +150,6 @@ describe('FacebookAdapter', () => {
 
     expect(reply.externalCommentId).toBe('new-reply');
     expect(reply.externalParentCommentId).toBe('c1');
-  });
-
-  it('refreshes the token and retries when Graph rejects it as expired', async () => {
-    // Proves the adapter delegates auth to withPlatformToken (whose policy is
-    // unit-tested in with-platform-token.spec.ts) — one page still comes back.
-    client.errorOnce = new TokenExpiredError(Platform.Facebook);
-    client.listCommentsResult = { data: [rawComment({ id: 'c1' })] };
-
-    const page = await adapter.getComments(CTX, 'post-1');
-
-    expect(tokens.refreshCalls).toBe(1);
-    expect(client.lastToken?.reveal()).toBe('refreshed-token');
-    expect(page.items[0].externalCommentId).toBe('c1');
   });
 
   it('lets typed platform errors from the client propagate untouched', async () => {

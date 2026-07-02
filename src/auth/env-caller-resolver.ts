@@ -8,7 +8,7 @@ const ENV_VAR = 'SOCIAL_API_KEYS';
 
 /**
  * Stub {@link CallerResolver} backed by an env var — the local/dev seam a real
- * authenticator replaces (exactly like {@link EnvSecretStore} for tokens). It
+ * authenticator replaces (exactly like `EnvTokenProvider` for tokens). It
  * treats the presented credential as an opaque API key and maps it to a tenant
  * from {@link ENV_VAR}; an unknown key resolves to `null` and the guard turns
  * that into a 401.

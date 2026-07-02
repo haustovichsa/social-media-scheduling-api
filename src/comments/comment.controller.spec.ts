@@ -92,14 +92,12 @@ describe('CommentController', () => {
 
       const result = await controller.replyToComment(ORG_ID, 'c1', {
         text: 'thanks!',
-        idempotencyKey: 'k-1',
       });
 
       expect(replyToComment).toHaveBeenCalledWith({
         orgId: ORG_ID,
         commentId: 'c1',
         text: 'thanks!',
-        idempotencyKey: 'k-1',
       });
       expect(result.id).toBe('r1');
       expect(result.parentCommentId).toBe('c1');

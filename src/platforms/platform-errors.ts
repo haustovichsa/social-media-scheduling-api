@@ -2,10 +2,10 @@ import { Platform } from '../common/enums/platform.enum';
 
 /**
  * Stable, machine-readable codes for the failures an adapter can surface. These
- * are part of the adapter contract: the HTTP layer (TASK-09) and the resilience
- * wrapper (TASK-11) switch on the *code*, never on a platform's raw response, so
- * every platform's problems map to the same documented API errors (AC-5). Add a
- * platform without touching this — the codes describe categories, not vendors.
+ * are part of the adapter contract: the HTTP error filter switches on the *code*,
+ * never on a platform's raw response, so every platform's problems map to the
+ * same documented API errors (AC-5). Add a platform without touching this — the
+ * codes describe categories, not vendors.
  */
 export enum PlatformErrorCode {
   /** The platform throttled us (HTTP 429 or an equivalent). Retryable. */
@@ -25,7 +25,7 @@ export enum PlatformErrorCode {
  * translate platform-native failures into one of these subclasses so the core
  * never sees a vendor error shape (RK-1, NFR-1); anything else escaping an
  * adapter is a bug. Carries a stable {@link PlatformErrorCode}, the offending
- * `platform`, and a `retryable` hint the resilience layer (TASK-11) reads.
+ * `platform`, and a `retryable` hint the rate-limit/retry seam would read (§8).
  *
  * The original error is kept on `cause` for logging only — it must never be
  * serialised into an API response (RK-6).

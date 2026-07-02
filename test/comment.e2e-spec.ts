@@ -8,10 +8,7 @@ import { Platform } from '../src/common/enums/platform.enum';
 import { ApiErrorResponse } from '../src/common/http';
 import { CommentController } from '../src/comments/comment.controller';
 import { CommentResponseDto } from '../src/comments/dto';
-import {
-  PostNotFoundError,
-  ReplyInProgressError,
-} from '../src/comments/comment-errors';
+import { PostNotFoundError } from '../src/comments/comment-errors';
 import { CommentService } from '../src/comments/comment.service';
 import { Comment, Page, Reply } from '../src/domain';
 import { RateLimitError } from '../src/platforms/platform-errors';
@@ -195,7 +192,7 @@ describe('Comments (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/comments/c1/replies')
         .set(...ORG1_AUTH)
-        .send({ text: 'thanks!', idempotencyKey: 'k-1' })
+        .send({ text: 'thanks!' })
         .expect(201);
 
       const body = res.body as CommentResponseDto;
@@ -205,39 +202,26 @@ describe('Comments (e2e)', () => {
         orgId: 'org-1',
         commentId: 'c1',
         text: 'thanks!',
-        idempotencyKey: 'k-1',
       });
     });
 
     it('requires authentication', async () => {
       await request(app.getHttpServer())
         .post('/comments/c1/replies')
-        .send({ text: 'thanks!', idempotencyKey: 'k-1' })
+        .send({ text: 'thanks!' })
         .expect(401);
       expect(replyToComment).not.toHaveBeenCalled();
     });
 
-    it('rejects a body missing the idempotency key', async () => {
+    it('rejects a body with empty text', async () => {
       const res = await request(app.getHttpServer())
         .post('/comments/c1/replies')
         .set(...ORG1_AUTH)
-        .send({ text: 'thanks!' })
+        .send({ text: '' })
         .expect(400);
 
       expect((res.body as ApiErrorResponse).code).toBe('VALIDATION_FAILED');
       expect(replyToComment).not.toHaveBeenCalled();
-    });
-
-    it('maps an in-progress reply to a 409 envelope', async () => {
-      replyToComment.mockRejectedValue(new ReplyInProgressError('k-1'));
-
-      const res = await request(app.getHttpServer())
-        .post('/comments/c1/replies')
-        .set(...ORG1_AUTH)
-        .send({ text: 'thanks!', idempotencyKey: 'k-1' })
-        .expect(409);
-
-      expect((res.body as ApiErrorResponse).code).toBe('REPLY_IN_PROGRESS');
     });
 
     it('maps a platform rate limit to 429 with Retry-After', async () => {
@@ -248,7 +232,7 @@ describe('Comments (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post('/comments/c1/replies')
         .set(...ORG1_AUTH)
-        .send({ text: 'thanks!', idempotencyKey: 'k-2' })
+        .send({ text: 'thanks!' })
         .expect(429);
 
       expect((res.body as ApiErrorResponse).code).toBe('RATE_LIMITED');

@@ -1,5 +1,5 @@
 import { Platform } from '../../../common/enums/platform.enum';
-import { AccessToken, TokenProvider } from '../../../credentials';
+import { TokenProvider } from '../../../credentials';
 import { runAdapterContractTests } from '../../adapter-contract.shared-spec';
 import { ResourceNotFoundError } from '../../platform-errors';
 import { FacebookAdapter } from './facebook.adapter';
@@ -36,7 +36,7 @@ class SeededGraphClient implements FacebookGraphClient {
 
   listComments(
     _externalPostId: string,
-    _accessToken: AccessToken,
+    _accessToken: string,
     after?: string,
   ): Promise<FacebookCommentsResponse> {
     if (!after) {
@@ -55,7 +55,7 @@ class SeededGraphClient implements FacebookGraphClient {
 
   createReply(
     externalCommentId: string,
-    _accessToken: AccessToken,
+    _accessToken: string,
     message: string,
   ): Promise<FacebookComment> {
     if (externalCommentId === this.missingCommentId) {
@@ -69,13 +69,8 @@ class SeededGraphClient implements FacebookGraphClient {
 
 /** Hands out a predictable token; the contract never inspects auth. */
 class StubTokenProvider implements TokenProvider {
-  getToken(): Promise<AccessToken> {
-    return Promise.resolve(
-      new AccessToken('access-token', new Date(Date.now() + 3_600_000)),
-    );
-  }
-  refreshToken(): Promise<AccessToken> {
-    return this.getToken();
+  getToken(): Promise<string> {
+    return Promise.resolve('access-token');
   }
 }
 
