@@ -1,12 +1,7 @@
-import { Module, Provider, Type } from '@nestjs/common';
+import { Module, Type } from '@nestjs/common';
 
 import { CredentialsModule } from '../credentials';
 import { AdapterRegistry } from './adapter-registry';
-import { FacebookAdapter } from './adapters/facebook/facebook.adapter';
-import {
-  FACEBOOK_GRAPH_CLIENT,
-  HttpFacebookGraphClient,
-} from './adapters/facebook/facebook-graph.client';
 import { MockAdapter } from './adapters/mock/mock.adapter';
 import {
   PLATFORM_ADAPTERS,
@@ -20,15 +15,7 @@ import {
  * it into {@link PLATFORM_ADAPTERS}, {@link AdapterRegistry} indexes it by
  * `platform`, and every service resolves it through the registry, no upstream edit.
  */
-const adapters: Type<PlatformAdapter>[] = [MockAdapter, FacebookAdapter];
-
-/**
- * Support providers an adapter needs (transport, config). Wiring for a specific
- * adapter, not adapters themselves, so they stay out of `adapters`.
- */
-const supportProviders: Provider[] = [
-  { provide: FACEBOOK_GRAPH_CLIENT, useClass: HttpFacebookGraphClient },
-];
+const adapters: Type<PlatformAdapter>[] = [MockAdapter];
 
 @Module({
   // CredentialsModule supplies the TOKEN_PROVIDER adapters resolve tokens
@@ -37,7 +24,6 @@ const supportProviders: Provider[] = [
   imports: [CredentialsModule],
   providers: [
     ...adapters,
-    ...supportProviders,
     {
       // Collect every registered adapter instance into the array token the
       // registry consumes. `inject` mirrors `adapters`, so registering a

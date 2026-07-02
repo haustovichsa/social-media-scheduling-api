@@ -183,7 +183,7 @@ src/
   comments/      Read & reply services, repository, controller, DTOs, error types
   platforms/     The extension point: adapter interface, registry, adapters,
                  shared fetched shapes, opaque cursor + thread-depth helpers
-    adapters/    mock/ (tests & demos) and facebook/ (reference real adapter)
+    adapters/    mock/ — the reference adapter exercising the full contract
   domain/        Platform-free canonical types (Comment, Reply, Page, Author)
   persistence/   @nestjs/mongoose schemas (platform accounts, posts, comments)
   credentials/   TokenProvider interface + env-backed stub (tokens never leak, RK-6)

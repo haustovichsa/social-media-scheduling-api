@@ -41,13 +41,13 @@ function fakeAdapter(platform: Platform): PlatformAdapter {
 
 describe('AdapterRegistry', () => {
   it('resolves a registered adapter by platform', () => {
-    const fb = fakeAdapter(Platform.Facebook);
-    const registry = new AdapterRegistry([fb, fakeAdapter(Platform.Mock)]);
+    const ig = fakeAdapter(Platform.Instagram);
+    const registry = new AdapterRegistry([ig, fakeAdapter(Platform.Mock)]);
 
-    expect(registry.get(Platform.Facebook)).toBe(fb);
+    expect(registry.get(Platform.Instagram)).toBe(ig);
     expect(registry.get(Platform.Mock).platform).toBe(Platform.Mock);
     expect(registry.supportedPlatforms()).toEqual(
-      expect.arrayContaining([Platform.Facebook, Platform.Mock]),
+      expect.arrayContaining([Platform.Instagram, Platform.Mock]),
     );
   });
 
@@ -62,8 +62,8 @@ describe('AdapterRegistry', () => {
     expect(
       () =>
         new AdapterRegistry([
-          fakeAdapter(Platform.Facebook),
-          fakeAdapter(Platform.Facebook),
+          fakeAdapter(Platform.Instagram),
+          fakeAdapter(Platform.Instagram),
         ]),
     ).toThrow(/Duplicate platform adapter/);
   });
@@ -77,7 +77,7 @@ describe('AdapterRegistry', () => {
 
 describe('PlatformsModule (DI wiring)', () => {
   it('provides an AdapterRegistry built from PLATFORM_ADAPTERS', async () => {
-    const fb = fakeAdapter(Platform.Facebook);
+    const ig = fakeAdapter(Platform.Instagram);
 
     // Override the adapter token with a fake to prove the real module's wiring:
     // adapters bound to PLATFORM_ADAPTERS flow into the registry.
@@ -85,11 +85,11 @@ describe('PlatformsModule (DI wiring)', () => {
       imports: [PlatformsModule],
     })
       .overrideProvider(PLATFORM_ADAPTERS)
-      .useValue([fb])
+      .useValue([ig])
       .compile();
 
     const registry = moduleRef.get(AdapterRegistry);
-    expect(registry.get(Platform.Facebook)).toBe(fb);
+    expect(registry.get(Platform.Instagram)).toBe(ig);
 
     await moduleRef.close();
   });
@@ -100,9 +100,7 @@ describe('PlatformsModule (DI wiring)', () => {
     }).compile();
 
     const registry = moduleRef.get(AdapterRegistry);
-    expect(registry.supportedPlatforms()).toEqual(
-      expect.arrayContaining([Platform.Mock, Platform.Facebook]),
-    );
+    expect(registry.supportedPlatforms()).toEqual([Platform.Mock]);
     expect(registry.get(Platform.Mock).platform).toBe(Platform.Mock);
 
     await moduleRef.close();

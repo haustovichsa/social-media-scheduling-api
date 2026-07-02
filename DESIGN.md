@@ -52,7 +52,8 @@ Everything below comes from those two facts: *many different platforms* and
                     │   (rate-limit/retry decorator │◀────│ (tokenRef→token) │─▶ secret store
                     │      is a seam here, §8)      │     └──────────────────┘   (tokens never
                     └─────┬─────────┬─────────┬─────┘                            leak: RK-6)
-                      Facebook    Mock        …       ← concrete PlatformAdapters
+                        Mock      (FB/IG/…)   ← concrete PlatformAdapters
+                                   (interface only)
                           │         │         │
              ┌────────────┬─────────┬─────────┬───────────┐
              │   Platform APIs (external, own the data)   │
@@ -77,8 +78,11 @@ The numbered sections below explain *why* each part looks the way it does.
 > **Scope of the implementation.** The task asked to *design and partially
 > implement*. The built core is the full read/reply path across platforms: the
 > adapter extension point, the canonical model, REST, tenant-scoped auth, the
-> error taxonomy, and a real (Facebook, partial) plus Mock adapter under a shared
-> contract test. Four production concerns are **designed here but deliberately
+> error taxonomy, and a Mock adapter that exercises the full adapter contract
+> (paging, threading, replies) under a shared contract-test suite. A real
+> platform is a drop-in of that same contract — the interface, registry, and
+> contract tests are the reusable machinery a Facebook/Instagram/… adapter plugs
+> into. Four production concerns are **designed here but deliberately
 > left as seams** rather than built, each flagged inline below: freshness &
 > background sync (§3), at-most-once replies (§4), per-platform
 > rate-limiting/retry (§8), and a real secret manager (§9). This keeps the
@@ -393,9 +397,10 @@ each is a sensible default the reviewer can change.
 ## Scope note
 
 Per the task (design + partial implementation), the build ships the full core
-path (read, reply, REST, auth, error taxonomy, tests, docs) with **one real
-adapter (Facebook Graph, partial) plus a Mock adapter**. The other platforms are
-the interface only — which is the "add a platform = one adapter" idea in action.
+path (read, reply, REST, auth, error taxonomy, tests, docs) with **a Mock adapter
+that fully implements the adapter contract**. Real platforms (Facebook,
+Instagram, …) are the interface only — a concrete adapter is a drop-in against
+the same contract, which is the "add a platform = one adapter" idea in action.
 
 Four production concerns are **designed here but left as seams**, each explained
 inline: freshness & background sync (§3), at-most-once replies (§4),
