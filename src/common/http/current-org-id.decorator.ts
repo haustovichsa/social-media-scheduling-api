@@ -11,14 +11,14 @@ import { Request } from 'express';
  * explicit and local.
  */
 export interface AuthenticatedRequest extends Request {
-  /** The caller's resolved tenant. Set by the auth/ownership guard (TASK-10). */
+  /** The caller's resolved tenant. Set by {@link AuthGuard}. */
   orgId?: string;
 }
 
 /**
- * Injects the caller's org id (A-6). The auth guard (TASK-10) authenticates the
- * request and sets `request.orgId`; every ownership-scoped query then reads it
- * through this decorator instead of parsing headers in each controller.
+ * Injects the caller's org id (A-6). {@link AuthGuard} authenticates the request
+ * and sets `request.orgId`; every ownership-scoped query then reads it through
+ * this decorator instead of parsing headers in each controller.
  *
  * If it is missing, a route was exposed without the guard in front of it — a
  * wiring bug, not a client error — so we fail loudly with a 500 rather than

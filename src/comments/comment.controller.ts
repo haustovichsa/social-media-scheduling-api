@@ -7,9 +7,11 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiNotFoundResponse,
@@ -18,8 +20,10 @@ import {
   ApiParam,
   ApiResponse,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import { AuthGuard } from '../auth';
 import { ApiErrorResponse, CurrentOrgId } from '../common/http';
 import { CommentService } from './comment.service';
 import {
@@ -31,15 +35,26 @@ import {
 
 /**
  * The REST edge for the comment feature (FR-4). It does three small things and
- * nothing else: read the caller's org from the request (via the auth guard,
- * TASK-10), delegate to {@link CommentService}, and map the canonical result up
- * to the wire DTOs. All error translation lives in the global
- * {@link DomainExceptionFilter}; controllers never catch or shape errors, so a
- * platform failure and a not-found both flow out as the documented
- * {@link ApiErrorResponse} envelope (AC-5). Only canonical shapes cross this
- * boundary — never a raw platform payload.
+ * nothing else: read the caller's org from the request (resolved by
+ * {@link AuthGuard} and injected via {@link CurrentOrgId}), delegate to
+ * {@link CommentService}, and map the canonical result up to the wire DTOs. All
+ * error translation lives in the global {@link DomainExceptionFilter};
+ * controllers never catch or shape errors, so a platform failure and a
+ * not-found both flow out as the documented {@link ApiErrorResponse} envelope
+ * (AC-5). Only canonical shapes cross this boundary — never a raw platform
+ * payload.
+ *
+ * `@UseGuards(AuthGuard)` protects both routes (AC-4): an unauthenticated
+ * request is rejected with 401 before any handler runs, and the resolved org
+ * scopes every downstream query so cross-tenant access surfaces as a 404.
  */
 @ApiTags('comments')
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
+@ApiUnauthorizedResponse({
+  description: 'Missing or invalid credentials.',
+  type: ApiErrorResponse,
+})
 @ApiBadRequestResponse({
   description: 'Request validation failed.',
   type: ApiErrorResponse,

@@ -1,11 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NextFunction, Response } from 'express';
 import request from 'supertest';
 import { App } from 'supertest/types';
 
+import { AuthGuard, Caller, CALLER_RESOLVER } from '../src/auth';
 import { Platform } from '../src/common/enums/platform.enum';
-import { ApiErrorResponse, AuthenticatedRequest } from '../src/common/http';
+import { ApiErrorResponse } from '../src/common/http';
 import { CommentController } from '../src/comments/comment.controller';
 import { CommentResponseDto } from '../src/comments/dto';
 import {
@@ -18,16 +18,20 @@ import { RateLimitError } from '../src/platforms/platform-errors';
 import { configureApp } from '../src/setup-app';
 
 /**
- * HTTP-level tests for the comment endpoints (TASK-09), wired exactly as
+ * HTTP-level tests for the comment endpoints (TASK-09/10), wired exactly as
  * `main.ts` wires them via the shared {@link configureApp} — global
- * `ValidationPipe` + `DomainExceptionFilter` — but with the
- * {@link CommentService} mocked so the run needs no Mongo or network. They prove
- * the edge end to end: validation rejects bad input, the canonical shapes go out
- * on success, and the typed taxonomy maps to the documented HTTP codes and
- * envelope (AC-5). A tiny middleware stands in for TASK-10's auth guard by
- * populating `req.orgId`.
+ * `ValidationPipe` + `DomainExceptionFilter` — plus the real {@link AuthGuard}
+ * over a stub {@link CallerResolver}. The {@link CommentService} is mocked so the
+ * run needs no Mongo or network. They prove the edge end to end: auth rejects
+ * unauthenticated requests, the resolved org scopes the call, validation rejects
+ * bad input, canonical shapes go out on success, and the typed taxonomy maps to
+ * the documented HTTP codes and envelope (AC-4, AC-5).
  */
 describe('Comments (e2e)', () => {
+  // Two dev API keys mapping to two tenants, via the stub resolver below.
+  const ORG1_AUTH: [string, string] = ['Authorization', 'Bearer org-1-key'];
+  const ORG2_AUTH: [string, string] = ['Authorization', 'Bearer org-2-key'];
+
   const createdAt = new Date('2026-01-02T03:04:05.000Z');
   const syncedAt = new Date('2026-01-02T04:00:00.000Z');
   const comment: Comment = {
@@ -44,21 +48,27 @@ describe('Comments (e2e)', () => {
   let app: INestApplication<App>;
   const getComments = jest.fn();
   const replyToComment = jest.fn();
+  const orgByKey: Record<string, string> = {
+    'org-1-key': 'org-1',
+    'org-2-key': 'org-2',
+  };
+  const resolve = jest.fn<Promise<Caller | null>, [string]>((credential) =>
+    Promise.resolve(
+      orgByKey[credential] ? { orgId: orgByKey[credential] } : null,
+    ),
+  );
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CommentController],
       providers: [
         { provide: CommentService, useValue: { getComments, replyToComment } },
+        { provide: CALLER_RESOLVER, useValue: { resolve } },
+        AuthGuard,
       ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    // Stand-in for TASK-10's auth/ownership guard.
-    app.use((req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
-      req.orgId = 'org-1';
-      next();
-    });
     configureApp(app);
     await app.init();
   });
@@ -67,7 +77,45 @@ describe('Comments (e2e)', () => {
     await app.close();
   });
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    getComments.mockReset();
+    replyToComment.mockReset();
+  });
+
+  describe('authentication (AC-4)', () => {
+    it('rejects a request with no credentials as 401', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/posts/p1/comments')
+        .expect(401);
+
+      expect((res.body as ApiErrorResponse).code).toBe('UNAUTHORIZED');
+      expect(getComments).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown API key as 401', async () => {
+      await request(app.getHttpServer())
+        .get('/posts/p1/comments')
+        .set('Authorization', 'Bearer nope')
+        .expect(401);
+      expect(getComments).not.toHaveBeenCalled();
+    });
+
+    it('scopes the call to the tenant the credential resolves to', async () => {
+      getComments.mockResolvedValue({
+        page: { items: [], nextCursor: null } as Page<Comment>,
+        syncedAt,
+      });
+
+      await request(app.getHttpServer())
+        .get('/posts/p1/comments')
+        .set(...ORG2_AUTH)
+        .expect(200);
+
+      expect(getComments).toHaveBeenCalledWith(
+        expect.objectContaining({ orgId: 'org-2', postId: 'p1' }),
+      );
+    });
+  });
 
   describe('GET /posts/:postId/comments', () => {
     it('returns a canonical page with ISO dates', async () => {
@@ -76,6 +124,7 @@ describe('Comments (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .get('/posts/p1/comments')
+        .set(...ORG1_AUTH)
         .query({ limit: 10 })
         .expect(200);
 
@@ -106,6 +155,7 @@ describe('Comments (e2e)', () => {
     it('rejects an out-of-range limit with a 400 envelope', async () => {
       const res = await request(app.getHttpServer())
         .get('/posts/p1/comments')
+        .set(...ORG1_AUTH)
         .query({ limit: 9999 })
         .expect(400);
 
@@ -116,15 +166,17 @@ describe('Comments (e2e)', () => {
     it('rejects an unknown query param', async () => {
       await request(app.getHttpServer())
         .get('/posts/p1/comments')
+        .set(...ORG1_AUTH)
         .query({ bogus: 'x' })
         .expect(400);
     });
 
-    it('maps a missing post to a 404 envelope', async () => {
+    it('maps a cross-tenant / missing post to a 404 envelope', async () => {
       getComments.mockRejectedValue(new PostNotFoundError('p1'));
 
       const res = await request(app.getHttpServer())
         .get('/posts/p1/comments')
+        .set(...ORG1_AUTH)
         .expect(404);
 
       expect(res.body).toMatchObject({
@@ -142,6 +194,7 @@ describe('Comments (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .post('/comments/c1/replies')
+        .set(...ORG1_AUTH)
         .send({ text: 'thanks!', idempotencyKey: 'k-1' })
         .expect(201);
 
@@ -156,9 +209,18 @@ describe('Comments (e2e)', () => {
       });
     });
 
+    it('requires authentication', async () => {
+      await request(app.getHttpServer())
+        .post('/comments/c1/replies')
+        .send({ text: 'thanks!', idempotencyKey: 'k-1' })
+        .expect(401);
+      expect(replyToComment).not.toHaveBeenCalled();
+    });
+
     it('rejects a body missing the idempotency key', async () => {
       const res = await request(app.getHttpServer())
         .post('/comments/c1/replies')
+        .set(...ORG1_AUTH)
         .send({ text: 'thanks!' })
         .expect(400);
 
@@ -171,6 +233,7 @@ describe('Comments (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .post('/comments/c1/replies')
+        .set(...ORG1_AUTH)
         .send({ text: 'thanks!', idempotencyKey: 'k-1' })
         .expect(409);
 
@@ -184,6 +247,7 @@ describe('Comments (e2e)', () => {
 
       const res = await request(app.getHttpServer())
         .post('/comments/c1/replies')
+        .set(...ORG1_AUTH)
         .send({ text: 'thanks!', idempotencyKey: 'k-2' })
         .expect(429);
 

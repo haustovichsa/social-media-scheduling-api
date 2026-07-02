@@ -19,6 +19,7 @@ async function bootstrap(): Promise<void> {
         'canonical shape across every social platform.',
     )
     .setVersion('0.1.0')
+    .addBearerAuth()
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, openApi));
 

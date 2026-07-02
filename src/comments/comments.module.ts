@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AuthModule } from '../auth';
 import { PersistenceModule } from '../persistence/persistence.module';
 import { PlatformsModule } from '../platforms';
 import { CommentController } from './comment.controller';
@@ -15,7 +16,7 @@ import { CommentService } from './comment.service';
  * {@link DomainExceptionFilter} wired in `main.ts`.
  */
 @Module({
-  imports: [PersistenceModule, PlatformsModule],
+  imports: [PersistenceModule, PlatformsModule, AuthModule],
   controllers: [CommentController],
   providers: [CommentService, CommentRepository],
   exports: [CommentService],

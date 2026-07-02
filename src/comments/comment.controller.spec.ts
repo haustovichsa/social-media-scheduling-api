@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 
+import { AuthGuard } from '../auth';
 import { Platform } from '../common/enums/platform.enum';
 import { Comment, Page, Reply } from '../domain';
 import { CommentController } from './comment.controller';
@@ -8,10 +9,11 @@ import { ListCommentsQueryDto } from './dto';
 
 /**
  * Unit tests for the controller's mapping and delegation (TASK-09). The service
- * is mocked, so these assert only what the edge owns: it passes the resolved org
- * and route/query params straight through, and maps the canonical result up to
- * the wire DTOs. Error translation is the filter's job and is tested separately;
- * ownership is the guard's job (TASK-10).
+ * is mocked and these call the handlers directly, so they assert only what the
+ * edge owns: it passes the resolved org and route/query params straight through,
+ * and maps the canonical result up to the wire DTOs. Error translation is the
+ * filter's job and the {@link AuthGuard} its own — both tested separately — so
+ * the guard is stubbed out here.
  */
 describe('CommentController', () => {
   const ORG_ID = 'org-1';
@@ -42,7 +44,10 @@ describe('CommentController', () => {
       providers: [
         { provide: CommentService, useValue: { getComments, replyToComment } },
       ],
-    }).compile();
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get(CommentController);
   });
