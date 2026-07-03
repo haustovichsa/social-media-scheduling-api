@@ -1,8 +1,8 @@
 # social-media-scheduling-api
 
-A multi-platform **comment system** for a social-media scheduling API. It does
-two things across many platforms (Facebook, Instagram, LinkedIn, X, …) behind
-one shared interface:
+A multi-platform **comment system** for a social-media scheduling API. Currently
+ships with a Mock adapter and is architected to support additional platforms. It does
+two things across any registered platform behind one shared interface:
 
 - **Read** the comments on an already-published post (`GET /posts/:postId/comments`).
 - **Reply** to a comment (`POST /comments/:commentId/replies`).
@@ -163,6 +163,30 @@ or 500s. See the error taxonomy in [`DESIGN.md`](DESIGN.md#7-error-taxonomy-mapp
 | `npm test`         | Unit + integration tests (Jest)          |
 | `npm run test:cov` | Tests with coverage                      |
 | `npm run test:e2e` | End-to-end HTTP tests (supertest)        |
+| `npm run seed`     | Populate MongoDB with sample data        |
+
+### Seed database with test data
+
+To quickly populate the database with a test post, comments, and replies:
+
+```bash
+npm run seed
+```
+
+This creates:
+- A **Mock platform account** for `org-1`
+- A **published post** on that account
+- **5 comments** (2 top-level, 2 replies, 1 standalone) to test reading & threading
+- Outputs the `postId` you can use in API calls
+
+After seeding, you can test the read endpoint:
+
+```bash
+curl -H "Authorization: Bearer devkey-org1" \
+  "localhost:3000/posts/<postId>/comments"
+```
+
+**Note:** The seed script clears existing data each time it runs. Use it to reset the database during development.
 
 ## Testing
 
